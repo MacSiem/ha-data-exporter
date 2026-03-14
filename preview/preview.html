@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HA Data Exporter - Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 24px; background: #f0f2f5; }
+  body.dark { background: #1c1c1c; }
+  .card {
+    background: #fff; border-radius: 12px; padding: 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08); max-width: 600px; margin: 0 auto;
+  }
+  body.dark .card { background: #1e1e1e; color: #e0e0e0; }
+  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .card-header h2 { font-size: 18px; font-weight: 500; color: #333; }
+  body.dark .card-header h2 { color: #e0e0e0; }
+  .stats { font-size: 12px; color: #888; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+  .toolbar select, .toolbar input {
+    padding: 6px 10px; border: 1px solid #e0e0e0; border-radius: 6px;
+    background: #fff; color: #333; font-size: 13px;
+  }
+  body.dark .toolbar select, body.dark .toolbar input {
+    background: #2a2a2a; color: #e0e0e0; border-color: #444;
+  }
+  .toolbar input { flex: 1; }
+  .table-container { border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+  body.dark .table-container { border-color: #444; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left; padding: 8px 6px; border-bottom: 2px solid #e0e0e0;
+    font-weight: 600; font-size: 12px; color: #888; background: #fafafa;
+  }
+  body.dark th { background: #252525; border-color: #444; color: #aaa; }
+  td { padding: 6px; border-bottom: 1px solid #f0f0f0; }
+  body.dark td { border-color: #333; }
+  tr:hover td { background: #f5f8ff; }
+  body.dark tr:hover td { background: #2a2a2a; }
+  .entity-id { font-family: monospace; font-size: 12px; }
+  .state-val { font-weight: 500; }
+  .checkbox-cell { width: 30px; text-align: center; }
+  .checkbox-cell input { accent-color: #1976d2; width: 16px; height: 16px; }
+  .actions { display: flex; gap: 8px; margin-top: 12px; align-items: center; }
+  .btn {
+    padding: 8px 16px; border: none; border-radius: 6px;
+    cursor: pointer; font-size: 13px; font-weight: 500;
+  }
+  .btn-primary { background: #1976d2; color: #fff; }
+  .btn-secondary { background: #e0e0e0; color: #333; }
+  body.dark .btn-secondary { background: #444; color: #e0e0e0; }
+  .format-select {
+    padding: 8px 10px; border: 1px solid #e0e0e0; border-radius: 6px;
+    background: #fff; color: #333; font-size: 13px;
+  }
+  body.dark .format-select { background: #2a2a2a; color: #e0e0e0; border-color: #444; }
+  .checked-row td { background: #e3f2fd; }
+  body.dark .checked-row td { background: #1a3a5c; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="card-header">
+    <h2>Data Exporter</h2>
+    <span class="stats">247 entities</span>
+  </div>
+  <div class="toolbar">
+    <select>
+      <option>All domains (247)</option>
+      <option>sensor (89)</option>
+      <option selected>light (24)</option>
+      <option>switch (18)</option>
+      <option>binary_sensor (42)</option>
+    </select>
+    <input type="text" placeholder="Search entities..." value="living" />
+  </div>
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th class="checkbox-cell"><input type="checkbox" /></th>
+          <th>Entity ID ▲</th>
+          <th>Name</th>
+          <th>State</th>
+          <th>Domain</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="checked-row">
+          <td class="checkbox-cell"><input type="checkbox" checked /></td>
+          <td class="entity-id">light.living_room_ceiling</td>
+          <td>Living Room Ceiling</td>
+          <td class="state-val">on</td>
+          <td>light</td>
+        </tr>
+        <tr class="checked-row">
+          <td class="checkbox-cell"><input type="checkbox" checked /></td>
+          <td class="entity-id">light.living_room_lamp</td>
+          <td>Living Room Lamp</td>
+          <td class="state-val">off</td>
+          <td>light</td>
+        </tr>
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td class="entity-id">light.living_room_led_strip</td>
+          <td>Living Room LED Strip</td>
+          <td class="state-val">on</td>
+          <td>light</td>
+        </tr>
+        <tr class="checked-row">
+          <td class="checkbox-cell"><input type="checkbox" checked /></td>
+          <td class="entity-id">light.living_room_spots</td>
+          <td>Living Room Spots</td>
+          <td class="state-val">on</td>
+          <td>light</td>
+        </tr>
+        <tr>
+          <td class="checkbox-cell"><input type="checkbox" /></td>
+          <td class="entity-id">light.living_room_tv_backlight</td>
+          <td>Living Room TV Backlight</td>
+          <td class="state-val">off</td>
+          <td>light</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="actions">
+    <select class="format-select">
+      <option selected>CSV</option>
+      <option>JSON</option>
+      <option>YAML</option>
+    </select>
+    <button class="btn btn-primary">Export Selected (3)</button>
+    <button class="btn btn-secondary">Export All Filtered</button>
+  </div>
+</div>
+</body>
+</html>

@@ -14,8 +14,6 @@ class HADataExporter extends HTMLElement {
     this._filterSearch = '';
     this._sortBy = 'entity_id';
     this._sortAsc = true;
-    this._filterState = 'all';
-    this._attrFilter = 'none';
   }
 
   set hass(hass) {
@@ -72,10 +70,6 @@ class HADataExporter extends HTMLElement {
       entities = entities.filter(e => this._config.domains.includes(e.domain));
     }
 
-    if (this._filterState !== 'all') {
-      entities = entities.filter(e => e.state === this._filterState);
-    }
-
     if (this._filterDomain !== 'all') {
       entities = entities.filter(e => e.domain === this._filterDomain);
     }
@@ -110,6 +104,182 @@ class HADataExporter extends HTMLElement {
     const format = this._config.default_format;
     this.shadowRoot.innerHTML = `
       <style>
+        :host {
+          --primary-color: var(--ha-card-header-color, #1976d2);
+          --bg-color: var(--ha-card-background, var(--card-background-color, #fff));
+          --text-color: var(--primary-text-color, #333);
+          --secondary-text: var(--secondary-text-color, #666);
+          --border-color: var(--divider-color, #e0e0e0);
+          --hover-bg: var(--table-row-alternative-background-color, #f5f5f5);
+          --accent: var(--accent-color, #03a9f4);
+        }
+        .exporter-card {
+          background: var(--bg-color);
+          border-radius: 12px;
+          padding: 16px;
+          font-family: var(--ha-card-header-font-family, inherit);
+          color: var(--text-color);
+        }
+        .card-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 12px;
+        }
+        .card-header h2 {
+          margin: 0;
+          font-size: 18px;
+          font-weight: 500;
+        }
+        .stats {
+          font-size: 12px;
+          color: var(--secondary-text);
+        }
+        .toolbar {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 12px;
+          flex-wrap: wrap;
+        }
+        .toolbar select, .toolbar input {
+          padding: 6px 10px;
+          border: 1px solid var(--border-color);
+          border-radius: 6px;
+          background: var(--bg-color);
+          color: var(--text-color);
+          font-size: 13px;
+          outline: none;
+        }
+        .toolbar input {
+          flex: 1;
+          min-width: 150px;
+        }
+        .toolbar select:focus, .toolbar input:focus {
+          border-color: var(--accent);
+        }
+        .entity-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+        }
+        .entity-table th {
+          text-align: left;
+          padding: 8px 6px;
+          border-bottom: 2px solid var(--border-color);
+          font-weight: 600;
+          font-size: 12px;
+          color: var(--secondary-text);
+          cursor: pointer;
+          user-select: none;
+          white-space: nowrap;
+        }
+        .entity-table th:hover {
+          color: var(--primary-color);
+        }
+        .entity-table th .sort-arrow {
+          font-size: 10px;
+          margin-left: 2px;
+        }
+        .entity-table td {
+          padding: 6px;
+          border-bottom: 1px solid var(--border-color);
+          max-width: 200px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .entity-table tr:hover {
+          background: var(--hover-bg);
+        }
+        .entity-table td.entity-id {
+          font-family: monospace;
+          font-size: 12px;
+        }
+        .entity-table td.state-val {
+          font-weight: 500;
+        }
+        .checkbox-cell {
+          width: 30px;
+          text-align: center;
+        }
+        .checkbox-cell input {
+          cursor: pointer;
+          width: 16px;
+          height: 16px;
+          accent-color: var(--primary-color);
+        }
+        .actions {
+          display: flex;
+          gap: 8px;
+          margin-top: 12px;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+        .btn {
+          padding: 8px 16px;
+          border: none;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 500;
+          transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.85; }
+        .btn-primary {
+          background: var(--primary-color);
+          color: #fff;
+        }
+        .btn-secondary {
+          background: var(--border-color);
+          color: var(--text-color);
+        }
+        .btn:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+        .format-select {
+          padding: 8px 10px;
+          border: 1px solid var(--border-color);
+          border-radius: 6px;
+          background: var(--bg-color);
+          color: var(--text-color);
+          font-size: 13px;
+        }
+        .pagination {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 8px;
+          margin-top: 8px;
+          font-size: 13px;
+          color: var(--secondary-text);
+        }
+        .pagination button {
+          padding: 4px 10px;
+          border: 1px solid var(--border-color);
+          border-radius: 4px;
+          background: var(--bg-color);
+          color: var(--text-color);
+          cursor: pointer;
+          font-size: 12px;
+        }
+        .pagination button:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+        .table-container {
+          max-height: 400px;
+          overflow-y: auto;
+          border: 1px solid var(--border-color);
+          border-radius: 8px;
+        }
+        .empty-state {
+          text-align: center;
+          padding: 32px;
+          color: var(--secondary-text);
+        }
+      
+/* === Modern Bento Light Mode === */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
@@ -410,20 +580,6 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
             <select id="domainFilter">
               <option value="all">All domains</option>
             </select>
-            <select id="stateFilter">
-              <option value="all">All states</option>
-              <option value="on">on</option>
-              <option value="off">off</option>
-              <option value="unavailable">unavailable</option>
-              <option value="unknown">unknown</option>
-            </select>
-            <select id="attrFilter">
-              <option value="none">Show attributes...</option>
-              <option value="unit_of_measurement">Unit</option>
-              <option value="device_class">Device Class</option>
-              <option value="icon">Icon</option>
-              <option value="all">All Attributes</option>
-            </select>
             <input type="text" id="searchFilter" placeholder="Search entities..." />
           </div>
           <div class="table-container">
@@ -435,8 +591,6 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
                   <th data-sort="name">Name <span class="sort-arrow"></span></th>
                   <th data-sort="state">State <span class="sort-arrow"></span></th>
                   <th data-sort="domain">Domain <span class="sort-arrow"></span></th>
-                  <th data-sort="last_changed">Last Changed <span class="sort-arrow"></span></th>
-                  <th data-sort="attr" class="attr-col" style="display:none">Attribute <span class="sort-arrow"></span></th>
                 </tr>
               </thead>
               <tbody id="entityBody"></tbody>
@@ -495,8 +649,6 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
         } else {
           this._sortBy = col;
           this._sortAsc = true;
-    this._filterState = 'all';
-    this._attrFilter = 'none';
         }
         this._updateEntities();
       });
@@ -533,7 +685,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     this.shadowRoot.querySelectorAll('th[data-sort]').forEach(th => {
       const arrow = th.querySelector('.sort-arrow');
       if (th.dataset.sort === this._sortBy) {
-        arrow.textContent = this._sortAsc ? ' ^' : ' ˇ';
+        arrow.textContent = this._sortAsc ? ' ▲' : ' ▼';
       } else {
         arrow.textContent = '';
       }
@@ -549,7 +701,7 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     // Render table
     tbody.innerHTML = '';
     if (pageEntities.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No entities found</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No entities found</td></tr>';
     } else {
       pageEntities.forEach(ent => {
         const tr = document.createElement('tr');
@@ -560,8 +712,6 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
           <td title="${ent.name}">${ent.name}</td>
           <td class="state-val" title="${ent.state}">${ent.state}</td>
           <td>${ent.domain}</td>
-          <td style="font-size:11px">${ent.last_changed ? new Date(ent.last_changed).toLocaleString() : ''}</td>
-          <td class="attr-col" style="display:${this._attrFilter !== 'none' ? '' : 'none'};font-size:11px" title="${this._attrFilter !== 'none' && this._attrFilter !== 'all' ? (ent.attributes[this._attrFilter] || '') : ''}">${this._attrFilter === 'all' ? JSON.stringify(ent.attributes).substring(0, 50) : (this._attrFilter !== 'none' ? (ent.attributes[this._attrFilter] || '') : '')}</td>
         `;
         tr.querySelector('input').addEventListener('change', (e) => {
           if (e.target.checked) {
@@ -578,9 +728,9 @@ canvas, .canvas-container canvas { width: 100%; height: 200px; border: 1px solid
     // Pagination controls
     if (totalPages > 1) {
       pagination.innerHTML = `
-        <button id="prevPage" ${this._currentPage === 0 ? 'disabled' : ''}>‹ Prev</button>
+        <button id="prevPage" ${this._currentPage === 0 ? 'disabled' : ''}>← Prev</button>
         <span>Page ${this._currentPage + 1} of ${totalPages}</span>
-        <button id="nextPage" ${this._currentPage >= totalPages - 1 ? 'disabled' : ''}>Next ›</button>
+        <button id="nextPage" ${this._currentPage >= totalPages - 1 ? 'disabled' : ''}>Next →</button>
       `;
       pagination.querySelector('#prevPage').addEventListener('click', () => {
         this._currentPage--;
@@ -717,6 +867,6 @@ window.customCards.push({
 
 console.info(
   '%c  HA-DATA-EXPORTER  %c v1.0.0 ',
-  'background: var(--primary-color, #03a9f4); color: var(--card-background-color, #1e1e1e); font-weight: bold; padding: 2px 6px; border-radius: 4px 0 0 4px;',
-  'background: #e3f2fd; color: var(--primary-color, #03a9f4); font-weight: bold; padding: 2px 6px; border-radius: 0 4px 4px 0;'
+  'background: #1976d2; color: #fff; font-weight: bold; padding: 2px 6px; border-radius: 4px 0 0 4px;',
+  'background: #e3f2fd; color: #1976d2; font-weight: bold; padding: 2px 6px; border-radius: 0 4px 4px 0;'
 );

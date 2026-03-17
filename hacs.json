@@ -1,5 +1,5 @@
 {
-  "name": "Data Exporter",
-  "render_readme": true,
-  "content_in_root": true
+    "name":  "Data Exporter",
+    "filename":  "ha-data-exporter.js",
+    "render_readme":  true
 }

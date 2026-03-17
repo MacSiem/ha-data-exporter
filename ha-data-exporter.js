@@ -22,6 +22,7 @@ class HADataExporter extends HTMLElement {
     this._filterSearch = '';
     this._sortBy = 'entity_id';
     this._sortAsc = true;
+    this._expandedEntities = new Set();
   }
 
   set hass(hass) {
@@ -443,6 +444,81 @@ canvas {
           height: 16px;
           accent-color: var(--primary-color);
         }
+        .expand-cell {
+          width: 30px;
+          text-align: center;
+        }
+        .expand-btn {
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-size: 14px;
+          padding: 2px 6px;
+          border-radius: 4px;
+          color: var(--bento-text-secondary);
+          transition: var(--bento-transition);
+        }
+        .expand-btn:hover {
+          background: var(--bento-primary-light);
+          color: var(--bento-primary);
+        }
+        .expand-btn.expanded {
+          color: var(--bento-primary);
+          transform: rotate(90deg);
+        }
+        .attr-row td {
+          padding: 0 !important;
+          border-bottom: 1px solid var(--bento-border) !important;
+          background: var(--bento-bg) !important;
+        }
+        .attr-container {
+          padding: 10px 14px 10px 46px;
+          animation: bentoFadeIn 0.2s ease-out;
+        }
+        .attr-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          gap: 6px 16px;
+        }
+        .attr-item {
+          display: flex;
+          gap: 8px;
+          font-size: 12px;
+          padding: 4px 0;
+          border-bottom: 1px solid rgba(0,0,0,0.04);
+        }
+        .attr-key {
+          color: var(--bento-text-secondary);
+          font-weight: 600;
+          min-width: 120px;
+          white-space: nowrap;
+          font-family: monospace;
+          font-size: 11px;
+        }
+        .attr-val {
+          color: var(--bento-text);
+          word-break: break-all;
+          max-width: 300px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .attr-val.complex {
+          font-family: monospace;
+          font-size: 11px;
+          background: rgba(0,0,0,0.03);
+          padding: 2px 6px;
+          border-radius: 4px;
+          max-height: 60px;
+          overflow-y: auto;
+        }
+        .attr-count {
+          font-size: 11px;
+          color: var(--bento-text-muted);
+          background: var(--bento-bg);
+          padding: 2px 8px;
+          border-radius: 10px;
+          font-weight: 500;
+        }
         .actions {
           display: flex;
           gap: 8px;
@@ -531,10 +607,12 @@ canvas {
               <thead>
                 <tr>
                   <th class="checkbox-cell"><input type="checkbox" id="selectAll" title="Select all" /></th>
+                  <th class="expand-cell"></th>
                   <th data-sort="entity_id">Entity ID <span class="sort-arrow"></span></th>
                   <th data-sort="name">Name <span class="sort-arrow"></span></th>
                   <th data-sort="state">State <span class="sort-arrow"></span></th>
                   <th data-sort="domain">Domain <span class="sort-arrow"></span></th>
+                  <th>Attrs</th>
                 </tr>
               </thead>
               <tbody id="entityBody"></tbody>
@@ -630,7 +708,7 @@ canvas {
     this.shadowRoot.querySelectorAll('th[data-sort]').forEach(th => {
       const arrow = th.querySelector('.sort-arrow');
       if (th.dataset.sort === this._sortBy) {
-        arrow.textContent = this._sortAsc ? ' ▲' : ' ▼';
+        arrow.textContent = this._sortAsc ? ' \u25B2' : ' \u25BC';
       } else {
         arrow.textContent = '';
       }
@@ -646,19 +724,24 @@ canvas {
     // Render table
     tbody.innerHTML = '';
     if (pageEntities.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No entities found</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No entities found</td></tr>';
     } else {
       pageEntities.forEach(ent => {
         const tr = document.createElement('tr');
         const checked = this._selectedEntities.has(ent.entity_id) ? 'checked' : '';
+        const attrs = ent.attributes || {};
+        const attrKeys = Object.keys(attrs).filter(k => k !== 'friendly_name');
+        const attrCount = attrKeys.length;
         tr.innerHTML = `
           <td class="checkbox-cell"><input type="checkbox" data-entity="${ent.entity_id}" ${checked} /></td>
+          <td class="expand-cell"><button class="expand-btn" data-expand="${ent.entity_id}" title="Show attributes">▶</button></td>
           <td class="entity-id" title="${ent.entity_id}">${ent.entity_id}</td>
           <td title="${ent.name}">${ent.name}</td>
           <td class="state-val" title="${ent.state}">${ent.state}</td>
           <td>${ent.domain}</td>
+          <td><span class="attr-count">${attrCount}</span></td>
         `;
-        tr.querySelector('input').addEventListener('change', (e) => {
+        tr.querySelector('input[type=checkbox]').addEventListener('change', (e) => {
           if (e.target.checked) {
             this._selectedEntities.add(ent.entity_id);
           } else {
@@ -667,15 +750,62 @@ canvas {
           this._updateStats();
         });
         tbody.appendChild(tr);
+
+        // Create expandable attribute row (hidden by default)
+        const attrRow = document.createElement('tr');
+        attrRow.className = 'attr-row';
+        attrRow.style.display = 'none';
+        attrRow.dataset.attrFor = ent.entity_id;
+        const attrTd = document.createElement('td');
+        attrTd.colSpan = 7;
+        let attrHtml = '<div class="attr-container"><div class="attr-grid">';
+        if (attrKeys.length === 0) {
+          attrHtml += '<div class="attr-item"><span class="attr-val" style="color:var(--bento-text-muted)">No attributes</span></div>';
+        } else {
+          attrKeys.sort().forEach(k => {
+            const v = attrs[k];
+            const isComplex = typeof v === 'object' && v !== null;
+            const displayVal = isComplex ? JSON.stringify(v) : String(v);
+            const valClass = isComplex ? 'attr-val complex' : 'attr-val';
+            attrHtml += `<div class="attr-item"><span class="attr-key">${k}</span><span class="${valClass}" title="${displayVal.replace(/"/g, '&quot;')}">${displayVal}</span></div>`;
+          });
+        }
+        attrHtml += '</div></div>';
+        attrTd.innerHTML = attrHtml;
+        attrRow.appendChild(attrTd);
+        tbody.appendChild(attrRow);
+
+        // Restore expanded state
+        if (!this._expandedEntities) this._expandedEntities = new Set();
+        if (this._expandedEntities.has(ent.entity_id)) {
+          attrRow.style.display = '';
+          tr.querySelector('.expand-btn').classList.add('expanded');
+        }
+
+        // Expand/collapse handler
+        tr.querySelector('.expand-btn').addEventListener('click', (e) => {
+          const btn = e.target;
+          const entityId = btn.dataset.expand;
+          const row = tbody.querySelector(`tr[data-attr-for="${entityId}"]`);
+          if (row.style.display === 'none') {
+            row.style.display = '';
+            btn.classList.add('expanded');
+            this._expandedEntities.add(entityId);
+          } else {
+            row.style.display = 'none';
+            btn.classList.remove('expanded');
+            this._expandedEntities.delete(entityId);
+          }
+        });
       });
     }
 
     // Pagination controls
     if (totalPages > 1) {
       pagination.innerHTML = `
-        <button id="prevPage" ${this._currentPage === 0 ? 'disabled' : ''}>← Prev</button>
+        <button id="prevPage" ${this._currentPage === 0 ? 'disabled' : ''}>\u25C0 Prev</button>
         <span>Page ${this._currentPage + 1} of ${totalPages}</span>
-        <button id="nextPage" ${this._currentPage >= totalPages - 1 ? 'disabled' : ''}>Next →</button>
+        <button id="nextPage" ${this._currentPage >= totalPages - 1 ? 'disabled' : ''}>Next \u25B6</button>
       `;
       pagination.querySelector('#prevPage').addEventListener('click', () => {
         this._currentPage--;

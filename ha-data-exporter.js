@@ -23,6 +23,8 @@ class HADataExporter extends HTMLElement {
     this._sortBy = 'entity_id';
     this._sortAsc = true;
     this._expandedEntities = new Set();
+    this._historyCache = {};
+    this._includeAttrsInExport = true;
   }
 
   set hass(hass) {
@@ -519,6 +521,82 @@ canvas {
           border-radius: 10px;
           font-weight: 500;
         }
+        .history-section {
+          margin-top: 10px;
+          padding-top: 10px;
+          border-top: 1px solid var(--bento-border);
+        }
+        .history-title {
+          font-size: 11px;
+          font-weight: 600;
+          color: var(--bento-text-secondary);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-bottom: 6px;
+        }
+        .history-list {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .history-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          font-size: 12px;
+          padding: 4px 8px;
+          border-radius: 4px;
+          background: rgba(0,0,0,0.02);
+        }
+        .history-item:first-child {
+          background: var(--bento-primary-light);
+          font-weight: 500;
+        }
+        .history-time {
+          color: var(--bento-text-muted);
+          font-family: monospace;
+          font-size: 11px;
+          min-width: 140px;
+        }
+        .history-state {
+          color: var(--bento-text);
+          font-weight: 500;
+        }
+        .history-arrow {
+          color: var(--bento-text-muted);
+          font-size: 10px;
+        }
+        .history-loading {
+          font-size: 11px;
+          color: var(--bento-text-muted);
+          padding: 4px 0;
+        }
+        .page-size-wrap {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .page-size-wrap label {
+          font-size: 12px;
+          color: var(--bento-text-secondary);
+        }
+        .page-size-wrap select {
+          padding: 3px 8px;
+          font-size: 12px;
+          border: 1px solid var(--bento-border);
+          border-radius: 4px;
+          background: var(--bento-card);
+        }
+        .export-option {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 13px;
+          color: var(--bento-text-secondary);
+        }
+        .export-option input[type=checkbox] {
+          accent-color: var(--bento-primary);
+        }
         .actions {
           display: flex;
           gap: 8px;
@@ -627,6 +705,7 @@ canvas {
             </select>
             <button class="btn btn-primary" id="exportBtn" disabled>Export Selected (0)</button>
             <button class="btn btn-secondary" id="exportAllBtn">Export All Filtered</button>
+            <label class="export-option"><input type="checkbox" id="includeAttrs" checked /> Include attributes</label>
           </div>
         </div>
       </ha-card>
@@ -676,6 +755,11 @@ canvas {
       });
     });
 
+    const includeAttrs = this.shadowRoot.getElementById('includeAttrs');
+    includeAttrs.addEventListener('change', (e) => {
+      this._includeAttrsInExport = e.target.checked;
+    });
+
     exportBtn.addEventListener('click', () => this._export('selected'));
     exportAllBtn.addEventListener('click', () => this._export('all'));
   }
@@ -715,7 +799,7 @@ canvas {
     });
 
     // Pagination
-    const pageSize = this._config.page_size;
+    const pageSize = this._pageSize || 15;
     const totalPages = Math.ceil(entities.length / pageSize);
     if (this._currentPage >= totalPages) this._currentPage = Math.max(0, totalPages - 1);
     const start = this._currentPage * pageSize;
@@ -758,7 +842,9 @@ canvas {
         attrRow.dataset.attrFor = ent.entity_id;
         const attrTd = document.createElement('td');
         attrTd.colSpan = 7;
-        let attrHtml = '<div class="attr-container"><div class="attr-grid">';
+        let attrHtml = '<div class="attr-container">';
+        // Attributes section
+        attrHtml += '<div class="attr-grid">';
         if (attrKeys.length === 0) {
           attrHtml += '<div class="attr-item"><span class="attr-val" style="color:var(--bento-text-muted)">No attributes</span></div>';
         } else {
@@ -770,7 +856,10 @@ canvas {
             attrHtml += `<div class="attr-item"><span class="attr-key">${k}</span><span class="${valClass}" title="${displayVal.replace(/"/g, '&quot;')}">${displayVal}</span></div>`;
           });
         }
-        attrHtml += '</div></div>';
+        attrHtml += '</div>';
+        // History section placeholder
+        attrHtml += `<div class="history-section"><div class="history-title">Historia stan\u00F3w (5 ostatnich)</div><div class="history-list" id="history-${ent.entity_id.replace(/\./g, '_')}"><span class="history-loading">Kliknij aby za\u0142adowa\u0107...</span></div></div>`;
+        attrHtml += '</div>';
         attrTd.innerHTML = attrHtml;
         attrRow.appendChild(attrTd);
         tbody.appendChild(attrRow);
@@ -780,6 +869,7 @@ canvas {
         if (this._expandedEntities.has(ent.entity_id)) {
           attrRow.style.display = '';
           tr.querySelector('.expand-btn').classList.add('expanded');
+          this._fetchHistory(ent.entity_id);
         }
 
         // Expand/collapse handler
@@ -791,6 +881,7 @@ canvas {
             row.style.display = '';
             btn.classList.add('expanded');
             this._expandedEntities.add(entityId);
+            this._fetchHistory(entityId);
           } else {
             row.style.display = 'none';
             btn.classList.remove('expanded');
@@ -801,23 +892,30 @@ canvas {
     }
 
     // Pagination controls
-    if (totalPages > 1) {
-      pagination.innerHTML = `
-        <button id="prevPage" ${this._currentPage === 0 ? 'disabled' : ''}>\u25C0 Prev</button>
-        <span>Page ${this._currentPage + 1} of ${totalPages}</span>
-        <button id="nextPage" ${this._currentPage >= totalPages - 1 ? 'disabled' : ''}>Next \u25B6</button>
-      `;
-      pagination.querySelector('#prevPage').addEventListener('click', () => {
-        this._currentPage--;
-        this._updateEntities();
-      });
-      pagination.querySelector('#nextPage').addEventListener('click', () => {
-        this._currentPage++;
-        this._updateEntities();
-      });
-    } else {
-      pagination.innerHTML = '';
-    }
+    pagination.innerHTML = `
+      <button id="prevPage" ${this._currentPage === 0 ? 'disabled' : ''}>\u25C0 Prev</button>
+      <span>Page ${this._currentPage + 1} of ${totalPages} (${entities.length})</span>
+      <button id="nextPage" ${this._currentPage >= totalPages - 1 ? 'disabled' : ''}>Next \u25B6</button>
+      <div class="page-size-wrap">
+        <label>Show:</label>
+        <select id="pageSizeSelect">
+          ${[15, 25, 50, 100].map(s => `<option value="${s}" ${s === pageSize ? 'selected' : ''}>${s}</option>`).join('')}
+        </select>
+      </div>
+    `;
+    pagination.querySelector('#prevPage').addEventListener('click', () => {
+      this._currentPage--;
+      this._updateEntities();
+    });
+    pagination.querySelector('#nextPage').addEventListener('click', () => {
+      this._currentPage++;
+      this._updateEntities();
+    });
+    pagination.querySelector('#pageSizeSelect').addEventListener('change', (e) => {
+      this._pageSize = parseInt(e.target.value);
+      this._currentPage = 0;
+      this._updateEntities();
+    });
 
     this._updateStats();
     stats.textContent = `${entities.length} entities`;
@@ -850,7 +948,7 @@ canvas {
         domain: e.domain,
         last_changed: e.last_changed
       };
-      if (this._config.show_attributes) {
+      if (this._includeAttrsInExport) {
         const attrs = { ...e.attributes };
         delete attrs.friendly_name;
         row.attributes = attrs;
@@ -887,7 +985,7 @@ canvas {
     if (data.length === 0) return '';
     const baseHeaders = ['entity_id', 'friendly_name', 'state', 'domain', 'last_changed'];
     const attrKeys = new Set();
-    if (this._config.show_attributes) {
+    if (this._includeAttrsInExport) {
       data.forEach(row => {
         if (row.attributes) {
           Object.keys(row.attributes).forEach(k => attrKeys.add(k));
@@ -953,6 +1051,73 @@ canvas {
     if (!this._tabPages[tabName]) this._tabPages[tabName] = 1;
     const start = (this._tabPages[tabName] - 1) * this._pageSize;
     return items.slice(start, start + this._pageSize);
+  }
+
+  async _fetchHistory(entityId) {
+    if (!this._historyCache) this._historyCache = {};
+    const containerId = 'history-' + entityId.replace(/\./g, '_');
+    const container = this.shadowRoot.getElementById(containerId);
+    if (!container) return;
+
+    // Check cache (valid for 30s)
+    const cached = this._historyCache[entityId];
+    if (cached && Date.now() - cached.ts < 30000) {
+      this._renderHistory(container, cached.data, entityId);
+      return;
+    }
+
+    container.innerHTML = '<span class="history-loading">\u0141adowanie historii...</span>';
+
+    try {
+      const end = new Date().toISOString();
+      const start = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const url = '/api/history/period/' + start + '?filter_entity_id=' + entityId + '&end_time=' + end + '&minimal_response&no_attributes';
+      // Get auth token - try multiple paths
+      let token = '';
+      try { token = this._hass.auth.data.access_token; } catch(e) {}
+      if (!token) try { token = this._hass.auth._data.access_token; } catch(e) {}
+      if (!token) try { token = this._hass.auth.accessToken; } catch(e) {}
+      const headers = token ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+      const resp = await fetch(url, { headers });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      const states = data && data[0] ? data[0] : [];
+      // Take last 5 unique state changes
+      const changes = [];
+      for (let i = states.length - 1; i >= 0 && changes.length < 5; i--) {
+        const s = states[i];
+        const st = s.s || s.state || '?';
+        const tm = s.lu || s.lc || s.last_updated || s.last_changed || '';
+        if (changes.length === 0 || changes[changes.length - 1].state !== st) {
+          changes.push({ state: st, time: tm });
+        }
+      }
+      changes.reverse();
+      this._historyCache[entityId] = { data: changes, ts: Date.now() };
+      this._renderHistory(container, changes, entityId);
+    } catch (err) {
+      container.innerHTML = '<span class="history-loading">Nie uda\u0142o si\u0119 pobra\u0107 historii: ' + err.message + '</span>';
+    }
+  }
+
+  _renderHistory(container, changes, entityId) {
+    if (!changes || changes.length === 0) {
+      container.innerHTML = '<span class="history-loading">Brak historii zmian w ostatnich 24h</span>';
+      return;
+    }
+    let html = '';
+    changes.forEach((ch, i) => {
+      const d = new Date(ch.time);
+      const timeStr = d.toLocaleString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit' });
+      const isCurrent = i === changes.length - 1;
+      html += '<div class="history-item' + (isCurrent ? '' : '') + '">';
+      html += '<span class="history-time">' + timeStr + '</span>';
+      if (i > 0) html += '<span class="history-arrow">\u2192</span>';
+      html += '<span class="history-state">' + (ch.state || '?') + '</span>';
+      if (isCurrent) html += ' <span style="font-size:10px;color:var(--bento-primary)">(teraz)</span>';
+      html += '</div>';
+    });
+    container.innerHTML = html;
   }
 
   _setupPaginationListeners() {

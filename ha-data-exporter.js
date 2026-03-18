@@ -667,6 +667,26 @@ canvas {
           padding: 32px;
           color: var(--secondary-text);
         }
+
+        /* RESPONSIVE */
+        @media (max-width: 768px) {
+          .exporter-card { padding: 12px; }
+          .card-header { flex-direction: column; gap: 8px; }
+          .card-header h2 { font-size: 16px; }
+          .entity-grid { grid-template-columns: 1fr !important; }
+          .filter-bar { flex-direction: column; }
+          .filter-bar input, .filter-bar select { width: 100%; }
+          table { font-size: 12px; }
+          td, th { padding: 6px 8px; word-break: break-all; }
+          .table-container { max-height: 300px; }
+          .tab-bar { flex-wrap: wrap; }
+          .tab { font-size: 12px; padding: 6px 10px; }
+          .export-options { flex-direction: column; }
+        }
+        @media (max-width: 480px) {
+          .tab { font-size: 11px; padding: 5px 8px; }
+          .entity-grid { gap: 8px; }
+        }
       </style>
       <ha-card>
         <div class="exporter-card">

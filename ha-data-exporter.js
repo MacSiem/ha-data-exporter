@@ -492,6 +492,25 @@ canvas {
         .toolbar select:focus, .toolbar input:focus {
           border-color: var(--accent);
         }
+        .toolbar-spacer {
+          flex: 1;
+          min-width: 12px;
+        }
+        .entity-count {
+          padding: 6px 10px;
+          color: var(--secondary-text);
+          font-size: 13px;
+          font-weight: 500;
+          white-space: nowrap;
+        }
+        .btn-sm {
+          padding: 6px 12px;
+          font-size: 12px;
+        }
+        .export-option-sm {
+          font-size: 12px;
+          white-space: nowrap;
+        }
         .entity-table {
           width: 100%;
           border-collapse: collapse;
@@ -694,13 +713,6 @@ canvas {
         .export-option input[type=checkbox] {
           accent-color: var(--bento-primary);
         }
-        .actions {
-          display: flex;
-          gap: 8px;
-          margin-top: 12px;
-          flex-wrap: wrap;
-          align-items: center;
-        }
         .btn {
           padding: 8px 16px;
           border: none;
@@ -778,11 +790,17 @@ canvas {
           .table-container { max-height: 300px; }
           .tab-bar { flex-wrap: wrap; }
           .tab { font-size: 12px; padding: 6px 10px; }
-          .export-options { flex-direction: column; }
+          .toolbar { flex-wrap: wrap; }
+          .toolbar-spacer { display: none; }
+          .btn-sm { padding: 5px 10px; font-size: 11px; }
+          .export-option-sm { font-size: 11px; }
         }
         @media (max-width: 480px) {
           .tab { font-size: 11px; padding: 5px 8px; }
           .entity-grid { gap: 8px; }
+          .toolbar input { min-width: 100px; }
+          .toolbar select { padding: 4px 8px; font-size: 12px; }
+          .btn-sm { padding: 4px 8px; font-size: 10px; }
         }
       </style>
       <ha-card>
@@ -796,6 +814,16 @@ canvas {
               <option value="all">All domains</option>
             </select>
             <input type="text" id="searchFilter" placeholder="Search entities..." />
+            <span class="toolbar-spacer"></span>
+            <span class="entity-count" id="entityCount"></span>
+            <select class="format-select" id="formatSelect">
+              <option value="csv">CSV</option>
+              <option value="json">JSON</option>
+              <option value="yaml">YAML</option>
+            </select>
+            <button class="btn btn-primary btn-sm" id="exportBtn" disabled>Export Selected (0)</button>
+            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button>
+            <label class="export-option export-option-sm"><input type="checkbox" id="includeAttrs" checked /> Include attrs</label>
           </div>
           <div class="snapshot-bar" style="display:flex;align-items:center;gap:12px;padding:8px 16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin:8px 0;font-size:12px;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;">
@@ -836,16 +864,6 @@ canvas {
             </table>
           </div>
           <div class="pagination" id="pagination"></div>
-          <div class="actions">
-            <select class="format-select" id="formatSelect">
-              <option value="csv" ${format === 'csv' ? 'selected' : ''}>CSV</option>
-              <option value="json" ${format === 'json' ? 'selected' : ''}>JSON</option>
-              <option value="yaml" ${format === 'yaml' ? 'selected' : ''}>YAML</option>
-            </select>
-            <button class="btn btn-primary" id="exportBtn" disabled>Export Selected (0)</button>
-            <button class="btn btn-secondary" id="exportAllBtn">Export All Filtered</button>
-            <label class="export-option"><input type="checkbox" id="includeAttrs" checked /> Include attributes</label>
-          </div>
         </div>
       </ha-card>
     `;

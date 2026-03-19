@@ -113,8 +113,15 @@ class HADataExporter extends HTMLElement {
     }
 
     entities.sort((a, b) => {
-      const valA = a[this._sortBy] || '';
-      const valB = b[this._sortBy] || '';
+      let valA, valB;
+      if (this._sortBy === 'attrCount') {
+        valA = a.attributes ? Object.keys(a.attributes).length : 0;
+        valB = b.attributes ? Object.keys(b.attributes).length : 0;
+        const cmp = valA - valB;
+        return this._sortAsc ? cmp : -cmp;
+      }
+      valA = a[this._sortBy] || '';
+      valB = b[this._sortBy] || '';
       const cmp = String(valA).localeCompare(String(valB), undefined, { numeric: true });
       return this._sortAsc ? cmp : -cmp;
     });
@@ -711,7 +718,7 @@ canvas {
                   <th data-sort="name">Name <span class="sort-arrow"></span></th>
                   <th data-sort="state">State <span class="sort-arrow"></span></th>
                   <th data-sort="domain">Domain <span class="sort-arrow"></span></th>
-                  <th>Attrs</th>
+                  <th data-sort="attrCount">Attrs <span class="sort-arrow"></span></th>
                 </tr>
               </thead>
               <tbody id="entityBody"></tbody>

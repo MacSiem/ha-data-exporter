@@ -1,5 +1,7 @@
 {
-    "name":  "Data Exporter",
-    "filename":  "ha-data-exporter.js",
-    "render_readme":  true
+  "name": "Data Exporter",
+  "filename": "ha-data-exporter.js",
+  "render_readme": true,
+  "content_in_root": true,
+  "homeassistant": "2024.1.0"
 }

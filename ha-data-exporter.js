@@ -1,11 +1,518 @@
+/* HA Tools split — ha-data-exporter v4.0.0 (2026-05-10) — single-tool standalone repo */
+(function() {
+'use strict';
+
+// XSS protection helper (reuse global from panel, fallback for standalone)
+const _esc = window._haToolsEsc || ((s) => typeof s === 'string' ? s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]) : (s ?? ''));
+
+// -- HA Tools Persistence (stub -- full impl in ha-tools-panel.js) --
+window._haToolsPersistence = window._haToolsPersistence || { _cache: {}, _hass: null, setHass(h) { this._hass = h; }, async save(k, d) { try { localStorage.setItem('ha-data-exporter-' + k, JSON.stringify(d)); } catch(e) { console.debug('[ha-data-exporter] caught:', e); } }, async load(k) { try { const r = localStorage.getItem('ha-data-exporter-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } }, loadSync(k) { try { const r = localStorage.getItem('ha-data-exporter-' + k); return r ? JSON.parse(r) : null; } catch(e) { return null; } } };
+
+
 /**
  * Home Assistant Data Exporter Card
  * Export devices, entities, states, and attributes to CSV/JSON
  */
 
+/* ===== HA Tools split — inline shared infrastructure ===== */
+// Bento Design System CSS (inline copy — keeps tool standalone)
+if (typeof window !== 'undefined' && !window.HAToolsBentoCSS) {
+  window.HAToolsBentoCSS = `
+/* ═══════════════════════════════════════════════
+   HA Tools — Bento Design System v1.0
+   ═══════════════════════════════════════════════ */
+
+/* ── CSS Custom Properties ───────────────────── */
+:host {
+  /* Primary palette */
+  --bento-primary: #3B82F6;
+  --bento-primary-hover: #2563EB;
+  --bento-primary-light: rgba(59, 130, 246, 0.08);
+  --bento-success: #10B981;
+  --bento-success-light: rgba(16, 185, 129, 0.08);
+  --bento-error: #EF4444;
+  --bento-error-light: rgba(239, 68, 68, 0.08);
+  --bento-warning: #F59E0B;
+  --bento-warning-light: rgba(245, 158, 11, 0.08);
+
+  /* Theme — maps to HA theme vars with light fallbacks */
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
+  --bento-border: var(--divider-color, #E2E8F0);
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-text-muted: var(--disabled-text-color, #94A3B8);
+
+  /* Radii */
+  --bento-radius-xs: 6px;
+  --bento-radius-sm: 10px;
+  --bento-radius-md: 16px;
+
+  /* Shadows */
+  --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+  --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
+  --bento-shadow-lg: 0 8px 25px rgba(0,0,0,0.06), 0 4px 10px rgba(0,0,0,0.04);
+
+  /* Transition */
+  --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Typography */
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  display: block;
+  color: var(--bento-text);
+}
+
+/* ── Dark mode ───────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-border: var(--divider-color, #2a2a4a);
+    --bento-text: var(--primary-text-color, #e0e0e0);
+    --bento-text-secondary: var(--secondary-text-color, #a0a0b0);
+    --bento-text-muted: var(--disabled-text-color, #6a6a7a);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+    --bento-primary-light: rgba(59,130,246,0.15);
+    --bento-success-light: rgba(16,185,129,0.15);
+    --bento-error-light: rgba(239,68,68,0.15);
+    --bento-warning-light: rgba(245,158,11,0.15);
+    color-scheme: dark !important;
+  }
+  .card, .card-container, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+    background: var(--bento-card) !important; color: var(--bento-text) !important; border-color: var(--bento-border) !important;
+  }
+  input, select, textarea { background: var(--bento-bg); color: var(--bento-text); border-color: var(--bento-border); }
+  .stat, .stat-card, .summary-card, .metric-card, .kpi-card, .health-card { background: var(--bento-bg); border-color: var(--bento-border); }
+  .tab-content, .section { color: var(--bento-text); }
+  table th { background: var(--bento-bg); color: var(--bento-text-secondary); border-color: var(--bento-border); }
+  table td { color: var(--bento-text); border-color: var(--bento-border); }
+  tr:hover td { background: rgba(59,130,246,0.08); }
+  .empty-state, .no-data { color: var(--bento-text-secondary); }
+  .schedule-section, .settings-section, .detail-panel, .details, .device-detail { background: var(--bento-bg); border-color: var(--bento-border); }
+  .addon-list, .content-item { background: rgba(255,255,255,0.05); }
+  .chart-container { background: var(--bento-bg); border-color: var(--bento-border); }
+  pre, code { background: #1e293b !important; color: #e2e8f0 !important; }
+}
+
+/* ── Reset ───────────────────────────────────── */
+* { box-sizing: border-box; }
+
+/* ── Main Card Wrapper ───────────────────────── */
+.card {
+  background: var(--bento-card);
+  border: 1px solid var(--bento-border);
+  border-radius: var(--bento-radius-md);
+  box-shadow: var(--bento-shadow-sm);
+  color: var(--bento-text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* ── Header ──────────────────────────────────── */
+.header {
+  padding: 16px 20px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.header-icon { font-size: 22px; }
+.header-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--bento-text);
+}
+.header-badge {
+  margin-left: auto;
+  background: var(--bento-border);
+  color: var(--bento-text-secondary);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+.content { padding: 16px 20px 20px; }
+
+/* ── Tabs (Bento unified) ────────────────────── */
+.tabs, .tab-bar, .tab-nav, .tab-header {
+  display: flex !important;
+  gap: 4px !important;
+  border-bottom: 2px solid var(--bento-border, var(--divider-color, #334155)) !important;
+  padding: 0 4px !important;
+  margin-bottom: 20px !important;
+  overflow-x: auto !important; overflow-y: hidden !important; -webkit-overflow-scrolling: touch !important;
+  flex-wrap: nowrap !important;
+}
+.tab, .tab-btn, .tab-button, .dtab {
+  padding: 10px 18px !important;
+  border: none !important;
+  background: transparent !important;
+  cursor: pointer !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  font-family: 'Inter', sans-serif !important;
+  color: var(--bento-text-secondary, var(--secondary-text-color, #94A3B8)) !important;
+  border-bottom: 2px solid transparent !important;
+  margin-bottom: -2px !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  white-space: nowrap !important;
+  border-radius: 0 !important;
+  flex: none !important;
+}
+.tab:hover, .tab-btn:hover, .tab-button:hover, .dtab:hover {
+  color: var(--bento-primary, #3B82F6) !important;
+  background: rgba(59, 130, 246, 0.08) !important;
+}
+.tab.active, .tab-btn.active, .tab-button.active, .dtab.active {
+  color: var(--bento-primary, #3B82F6) !important;
+  border-bottom-color: var(--bento-primary, #3B82F6) !important;
+  background: rgba(59, 130, 246, 0.04) !important;
+  font-weight: 600 !important;
+}
+
+/* ── Tab content animation ───────────────────── */
+.tab-content {
+  display: block;
+}
+.tab-content.active {
+  animation: bentoFadeIn 0.3s ease-out;
+}
+@keyframes bentoFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Stat / KPI cards ────────────────────────── */
+.stat-card, .stat-item, .metric-card, .kpi-card {
+  background: var(--bento-card, var(--card-background-color, #1E293B)) !important;
+  border: 1px solid var(--bento-border, var(--divider-color, #334155)) !important;
+  border-radius: var(--bento-radius-sm, 10px) !important;
+  padding: 16px !important;
+  text-align: center !important;
+  transition: var(--bento-transition);
+}
+.stat-card:hover, .stat-item:hover, .metric-card:hover, .kpi-card:hover {
+  box-shadow: var(--bento-shadow-md);
+}
+.stat-icon { font-size: 20px; margin-bottom: 4px; }
+.stat-value, .stat-val, .metric-value, .kpi-val {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--bento-text);
+}
+.stat-label, .stat-lbl, .metric-label, .kpi-lbl {
+  font-size: 11px;
+  color: var(--bento-text-secondary);
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 500;
+}
+
+/* ── Overview grid (2×2 stat layout) ─────────── */
+.overview-grid, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+/* ── Section headers ─────────────────────────── */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--bento-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin: 12px 0 8px;
+}
+
+/* ── Loading / Empty / Info ──────────────────── */
+.loading-bar {
+  height: 3px;
+  background: linear-gradient(90deg, var(--bento-primary), transparent);
+  border-radius: 2px;
+  animation: bentoLoad 1s infinite;
+  margin-bottom: 8px;
+}
+@keyframes bentoLoad { 0% { background-position: 0; } 100% { background-position: 200px; } }
+
+.empty-state, .no-data, .no-results {
+  text-align: center;
+  color: var(--bento-text-secondary);
+  padding: 32px 16px;
+  font-size: 13px;
+  background: var(--bento-bg);
+  border-radius: var(--bento-radius-sm);
+}
+.info-note, .tip-box {
+  font-size: 12px;
+  color: var(--bento-text-secondary);
+  background: var(--bento-bg);
+  border-radius: var(--bento-radius-sm);
+  padding: 8px 10px;
+  border-left: 3px solid var(--bento-primary);
+  margin-top: 8px;
+}
+.last-updated {
+  font-size: 11px;
+  color: var(--bento-text-muted);
+  text-align: right;
+  margin-top: 8px;
+}
+
+/* ── Buttons ─────────────────────────────────── */
+.refresh-btn {
+  background: var(--bento-border);
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--bento-text-secondary);
+  cursor: pointer;
+  font-weight: 500;
+  transition: var(--bento-transition);
+}
+.refresh-btn:hover { background: var(--bento-primary); color: white; }
+
+.toggle-btn, .action-btn {
+  background: var(--bento-primary);
+  border: none;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: white;
+  cursor: pointer;
+  font-weight: 500;
+  transition: var(--bento-transition);
+}
+.toggle-btn:hover, .action-btn:hover { opacity: .85; }
+
+.send-btn, .btn-primary {
+  width: 100%;
+  background: var(--bento-primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--bento-transition);
+}
+.send-btn:hover, .btn-primary:hover {
+  background: var(--bento-primary-hover);
+  transform: translateY(-1px);
+}
+.send-btn:active, .btn-primary:active { transform: translateY(0); }
+.send-btn:disabled, .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Badges / Status ─────────────────────────── */
+.badge, .status-badge, .tag, .chip {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-block;
+}
+.badge-ok, .badge-success { background: var(--bento-success-light); color: var(--bento-success); }
+.badge-er, .badge-error   { background: var(--bento-error-light);   color: var(--bento-error); }
+.badge-warn, .badge-warning { background: var(--bento-warning-light); color: var(--bento-warning); }
+.badge-info { background: var(--bento-primary-light); color: var(--bento-primary); }
+
+/* ── Count badges (inline) ───────────────────── */
+.count-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+.error-badge { background: rgba(239,68,68,0.13); color: var(--bento-error); }
+.warn-badge  { background: rgba(245,158,11,0.13); color: var(--bento-warning); }
+.info-badge  { background: rgba(59,130,246,0.13); color: var(--bento-primary); }
+.ok-badge    { background: rgba(16,185,129,0.13); color: var(--bento-success); }
+
+/* ── Tables ───────────────────────────────────── */
+table { width: 100%; border-collapse: separate; border-spacing: 0; }
+th {
+  background: var(--bento-bg);
+  color: var(--bento-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 2px solid var(--bento-border);
+}
+td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--bento-border);
+  color: var(--bento-text);
+  font-size: 13px;
+}
+tr:hover td { background: var(--bento-primary-light); }
+
+/* ── Forms / Inputs ──────────────────────────── */
+input, select, textarea {
+  padding: 8px 12px;
+  border: 1.5px solid var(--bento-border);
+  border-radius: var(--bento-radius-xs);
+  background: var(--bento-card);
+  color: var(--bento-text);
+  font-size: 13px;
+  font-family: 'Inter', sans-serif;
+  transition: var(--bento-transition);
+  outline: none;
+}
+input:focus, select:focus, textarea:focus {
+  border-color: var(--bento-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* ── Code blocks ─────────────────────────────── */
+code {
+  background: var(--bento-border);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+pre {
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  overflow-x: auto;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Grid layouts ────────────────────────────── */
+.schedule-grid, .send-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.schedule-card, .send-card, .info-card {
+  background: var(--bento-bg);
+  border: 1px solid var(--bento-border);
+  border-radius: var(--bento-radius-sm);
+  padding: 14px;
+}
+
+/* ── Log entries ─────────────────────────────── */
+.log-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 4px 6px;
+  padding: 8px;
+  border-radius: var(--bento-radius-sm);
+  margin-bottom: 4px;
+  font-size: 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+.error-entry { background: var(--bento-error-light); border: 1px solid rgba(239,68,68,0.13); }
+.warn-entry  { background: var(--bento-warning-light); border: 1px solid rgba(245,158,11,0.13); }
+.log-time { color: var(--bento-text-muted); flex-shrink: 0; }
+.log-domain {
+  font-weight: 600;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-all;
+}
+.error-domain { color: var(--bento-error); }
+.warn-domain  { color: var(--bento-warning); }
+.log-msg {
+  color: var(--bento-text-secondary);
+  flex-basis: 100%;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  min-width: 0;
+}
+
+/* ── Send status ─────────────────────────────── */
+.send-status {
+  padding: 10px 14px;
+  border-radius: var(--bento-radius-sm);
+  margin-top: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+}
+.send-status.sending { background: var(--bento-primary-light); color: var(--bento-primary); }
+.send-status.success { background: var(--bento-success-light); color: var(--bento-success); }
+.send-status.error   { background: var(--bento-error-light);   color: var(--bento-error); }
+
+/* ── Scrollbar ───────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bento-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--bento-text-muted); }
+
+/* ── Animations ──────────────────────────────── */
+@keyframes bentoSpin { to { transform: rotate(360deg); } }
+@keyframes bentoPulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+
+/* ── Mobile — 768 px ─────────────────────────── */
+@media (max-width: 768px) {
+  .content { padding: 12px; }
+  .tabs { flex-wrap: nowrap !important; overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; gap: 2px !important; }
+  .tab, .tab-button, .tab-btn { padding: 6px 10px !important; font-size: 12px !important; white-space: nowrap !important; }
+  .overview-grid, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .stat-value, .stat-val, .kpi-val, .metric-val { font-size: 18px !important; }
+  .stat-label, .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px !important; }
+  .send-grid, .schedule-grid { grid-template-columns: 1fr; }
+  .log-entry { flex-wrap: wrap; gap: 2px 6px; }
+  .log-domain { max-width: 60%; font-size: 11px; }
+  .log-msg { flex-basis: 100%; max-width: 100%; overflow-wrap: anywhere; font-size: 11px; }
+  pre { white-space: pre-wrap; word-break: break-all; max-width: calc(100vw - 80px); overflow-x: auto; }
+  .panels, .board { flex-direction: column; }
+  .column { min-width: unset; }
+  h2 { font-size: 18px; }
+  h3 { font-size: 15px; }
+}
+
+/* ── Mobile — 480 px ─────────────────────────── */
+@media (max-width: 480px) {
+  .tabs { gap: 1px !important; }
+  .tab, .tab-button, .tab-btn { padding: 5px 8px !important; font-size: 11px !important; }
+  .overview-grid, .stats-grid, .summary-grid { grid-template-columns: 1fr 1fr; }
+  .stat-value, .stat-val, .kpi-val { font-size: 16px !important; }
+}
+`;
+}
+// XSS escape singleton (idempotent)
+if (typeof window !== 'undefined') {
+  window._haToolsEsc = window._haToolsEsc || (function(){
+    var MAP = {};
+    MAP[String.fromCharCode(38)] = '&amp;';
+    MAP[String.fromCharCode(60)] = '&lt;';
+    MAP[String.fromCharCode(62)] = '&gt;';
+    MAP[String.fromCharCode(34)] = '&quot;';
+    MAP[String.fromCharCode(39)] = '&#39;';
+    return function(s){ return typeof s === 'string' ? s.replace(/[&<>"']/g, function(c){ return MAP[c]; }) : (s == null ? '' : s); };
+  })();
+}
+/* ============================================================ */
+
 class HADataExporter extends HTMLElement {
   constructor() {
     super();
+    this._lang = (navigator.language || '').startsWith('pl') ? 'pl' : 'en';
     this.attachShadow({ mode: 'open' });
     // --- Throttle fields ---
     this._lastRenderTime = 0;
@@ -35,17 +542,23 @@ class HADataExporter extends HTMLElement {
 
   // --- Snapshot persistence ---
   _snapshotKey() { return 'ha-data-exporter-snapshots-' + (this._config.storage_key || 'default'); }
+
+  _sanitize(str) {
+    if (!str) return str;
+    try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
+  }
+
   _settingsKey() { return 'ha-data-exporter-settings-' + (this._config.storage_key || 'default'); }
 
   _loadSnapshotSettings() {
     try {
       const raw = localStorage.getItem(this._settingsKey());
       if (raw) this._snapshotSettings = { ...this._snapshotSettings, ...JSON.parse(raw) };
-    } catch(e) {}
+    } catch(e) { console.debug('[ha-data-exporter] caught:', e); }
   }
 
   _saveSnapshotSettings() {
-    try { localStorage.setItem(this._settingsKey(), JSON.stringify(this._snapshotSettings)); } catch(e) {}
+    try { localStorage.setItem(this._settingsKey(), JSON.stringify(this._snapshotSettings)); } catch(e) { console.debug('[ha-data-exporter] caught:', e); }
   }
 
   _loadSnapshots() {
@@ -62,7 +575,7 @@ class HADataExporter extends HTMLElement {
       localStorage.setItem(this._snapshotKey(), JSON.stringify(this._snapshots));
     } catch(e) { /* storage full - trim more */
       this._snapshots = this._snapshots.slice(-10);
-      try { localStorage.setItem(this._snapshotKey(), JSON.stringify(this._snapshots)); } catch(e2) {}
+      try { localStorage.setItem(this._snapshotKey(), JSON.stringify(this._snapshots)); } catch(e2) { console.debug('[ha-data-exporter] caught:', e); }
     }
   }
 
@@ -109,7 +622,7 @@ class HADataExporter extends HTMLElement {
 
   _updateSnapshotStatus() {
     const el = this.shadowRoot ? this.shadowRoot.getElementById('snapshotStatus') : null;
-    if (el) el.textContent = this._snapshots.length + ' zapisanych';
+    if (el) el.textContent = this._snapshots.length + ' ' + this._t.savedSnapshots;
   }
 
   disconnectedCallback() {
@@ -117,7 +630,8 @@ class HADataExporter extends HTMLElement {
   }
 
   set hass(hass) {
-    this._hass = hass;
+
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
     if (!hass) return;
     const now = Date.now();
     if (!this._firstHassRender) {
@@ -140,6 +654,67 @@ class HADataExporter extends HTMLElement {
     }
     this._updateEntities();
     this._lastRenderTime = now;
+  }
+
+
+  get _t() {
+    const T = {
+      pl: {
+        title: 'Eksporter Danych',
+        loading: 'Wczytywanie...',
+        noData: 'Brak danych',
+        error: 'B\u0142\u0105d',
+        refresh: 'Od\u015bwie\u017c',
+        save: 'Zapisz',
+        cancel: 'Anuluj',
+        savedSnapshots: 'zapisanych',
+        attributes: 'Atrybuty',
+        takeSnapshot: 'Zr\u00f3b snapshot teraz',
+        clearSnapshots: 'Wyczy\u015b\u0107 snapshoty',
+        snapshotInterval30s: 'co 30s',
+        snapshotInterval1min: 'co 1 min',
+        snapshotInterval5min: 'co 5 min',
+        snapshotInterval15min: 'co 15 min',
+        snapshotInterval1h: 'co 1h',
+        stateHistory: 'Historia stan\u00f3w (24h z HA)',
+        snapshotsTitle: 'Snapshoty',
+        snapshots: 'zapisy\u00f3w',
+        clickToLoad: 'Kliknij aby za\u0142adowa\u0107...',
+        loadingHistory: '\u0141adowanie historii...',
+        loadHistoryError: 'Nie uda\u0142o si\u0119 pobra\u0107 historii:',
+        noStateChanges: 'Brak historii zmian w ostatnich 24h',
+        now: 'teraz',
+        locale: (this._lang === 'pl' ? 'pl-PL' : 'en-US'),
+      },
+      en: {
+        title: 'Data Exporter',
+        loading: 'Loading...',
+        noData: 'No data',
+        error: 'Error',
+        refresh: 'Refresh',
+        save: 'Save',
+        cancel: 'Cancel',
+        savedSnapshots: 'saved',
+        attributes: 'Attributes',
+        takeSnapshot: 'Take snapshot now',
+        clearSnapshots: 'Clear snapshots',
+        snapshotInterval30s: 'every 30s',
+        snapshotInterval1min: 'every 1 min',
+        snapshotInterval5min: 'every 5 min',
+        snapshotInterval15min: 'every 15 min',
+        snapshotInterval1h: 'every 1h',
+        stateHistory: 'State history (24h from HA)',
+        snapshotsTitle: 'Snapshots',
+        snapshots: 'entries',
+        clickToLoad: 'Click to load...',
+        loadingHistory: 'Loading history...',
+        loadHistoryError: 'Failed to load history:',
+        noStateChanges: 'No state changes in the last 24h',
+        now: 'now',
+        locale: 'en-US',
+      },
+    };
+    return T[this._lang] || T.en;
   }
 
   setConfig(config) {
@@ -226,11 +801,27 @@ class HADataExporter extends HTMLElement {
   }
 
   _render() {
+    if (!this._hass) return;
+    const L = this._lang === 'pl';
     const format = this._config.default_format;
     this.shadowRoot.innerHTML = `
-      <style>
+      <style>${window.HAToolsBentoCSS || ""}
+/* === Support / Donation Section (HA Tools split) === */
+.donate-section { margin: 20px 0 4px; padding: 18px 20px;  background: var(--donate-bg, linear-gradient(135deg, #fff5f5 0%, #fff0f6 50%, #f8f0ff 100%));  border: 1px solid var(--donate-border, #f3d3e0); border-radius: var(--bento-radius-md, 16px);  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+.donate-section h3 { margin: 0 0 6px; font-size: 15px; color: var(--donate-heading, #be185d); }
+.donate-section p  { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--donate-text, #6b21a8); }
+.donate-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.donate-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 10px;  font-weight: 600; font-size: 12.5px; text-decoration: none; transition: transform .15s ease, box-shadow .15s ease; }
+.donate-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+.donate-btn.coffee { background: #FFDD00; color: #000; border: 1px solid #e6c700; }
+.donate-btn.paypal { background: #0070ba; color: #fff; border: 1px solid #005ea6; }
+@media (prefers-color-scheme: dark) {  .donate-section { background: linear-gradient(135deg, #2a1525 0%, #1e1530 50%, #251530 100%); border-color: #4a3555; }  .donate-section h3 { color: #f0c0d8; }  .donate-section p  { color: #d4a0b8; }  .donate-btn.coffee { background: #b8a100; color: #fff; border-color: #8a7a00; }  .donate-btn.paypal { background: #005a96; color: #e0f0ff; border-color: #004a7a; } }
+@media (max-width: 600px) {  .donate-section { flex-direction: column; text-align: center; padding: 16px; }  .donate-buttons { justify-content: center; } }
+
+
+        * { box-sizing: border-box; }
+
 /* ===== BENTO LIGHT MODE DESIGN SYSTEM ===== */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :host {
   --bento-primary: #3B82F6;
@@ -242,12 +833,12 @@ class HADataExporter extends HTMLElement {
   --bento-error-light: rgba(239, 68, 68, 0.08);
   --bento-warning: #F59E0B;
   --bento-warning-light: rgba(245, 158, 11, 0.08);
-  --bento-bg: #F8FAFC;
-  --bento-card: #FFFFFF;
-  --bento-border: #E2E8F0;
-  --bento-text: #1E293B;
-  --bento-text-secondary: #64748B;
-  --bento-text-muted: #94A3B8;
+  --bento-bg: var(--primary-background-color, #F8FAFC);
+  --bento-card: var(--card-background-color, #FFFFFF);
+  --bento-border: var(--divider-color, #E2E8F0);
+  --bento-text: var(--primary-text-color, #1E293B);
+  --bento-text-secondary: var(--secondary-text-color, #64748B);
+  --bento-text-muted: var(--disabled-text-color, #94A3B8);
   --bento-radius-xs: 6px;
   --bento-radius-sm: 10px;
   --bento-radius-md: 16px;
@@ -257,35 +848,16 @@ class HADataExporter extends HTMLElement {
   --bento-transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
-@media (prefers-color-scheme: dark) {
-  :host {
-    --bento-bg: #1a1a2e;
-    --bento-card: #16213e;
-    --bento-text: #e2e8f0;
-    --bento-text-secondary: #94a3b8;
-    --bento-border: #334155;
-    --bento-success: #34d399;
-    --bento-warning: #fbbf24;
-    --bento-error: #f87171;
-  }
-}
-:host-context([data-themes]) {
-  --bento-bg: var(--lovelace-background, var(--primary-background-color, #F8FAFC));
-  --bento-card: var(--card-background-color, var(--ha-card-background, #FFFFFF));
-  --bento-text: var(--primary-text-color, #1E293B);
-  --bento-text-secondary: var(--secondary-text-color, #64748B);
-  --bento-border: var(--divider-color, #E2E8F0);
-}
 
 /* Card */
-.card, .ha-card, ha-card, .main-card, .exporter-card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
+.card, .ha-card, ha-card, .main-card, .card, .security-card, .reports-card, .storage-card, .chore-card, .cry-card, .backup-card, .network-card, .sentence-card, .energy-card, .panel-card {
   background: var(--bento-card) !important;
   border: 1px solid var(--bento-border) !important;
   border-radius: var(--bento-radius-md) !important;
   box-shadow: var(--bento-shadow-sm) !important;
   font-family: 'Inter', sans-serif !important;
   color: var(--bento-text) !important;
-  overflow: hidden;
+  overflow: visible;
   padding: 20px !important;
 }
 
@@ -309,7 +881,7 @@ class HADataExporter extends HTMLElement {
   margin-bottom: 20px;
   overflow-x: auto;
 }
-.tab, .tab-btn, .tab-button {
+.tab, .tab-btn, .tab-btn {
   padding: 10px 18px;
   border: none;
   background: transparent;
@@ -324,11 +896,11 @@ class HADataExporter extends HTMLElement {
   white-space: nowrap;
   border-radius: 0;
 }
-.tab:hover, .tab-btn:hover, .tab-button:hover {
+.tab:hover, .tab-btn:hover, .tab-btn:hover {
   color: var(--bento-primary);
   background: var(--bento-primary-light);
 }
-.tab.active, .tab-btn.active, .tab-button.active {
+.tab.active, .tab-btn.active, .tab-btn.active {
   color: var(--bento-primary);
   border-bottom-color: var(--bento-primary);
   background: rgba(59, 130, 246, 0.04);
@@ -459,20 +1031,22 @@ canvas {
 /* ===== END BENTO LIGHT MODE ===== */
 
         :host {
-          --primary-color: var(--ha-card-header-color, #1976d2);
-          --bg-color: var(--ha-card-background, var(--card-background-color, #fff));
-          --text-color: var(--primary-text-color, #333);
-          --secondary-text: var(--secondary-text-color, #666);
-          --border-color: var(--divider-color, #e0e0e0);
-          --hover-bg: var(--table-row-alternative-background-color, #f5f5f5);
-          --accent: var(--accent-color, #03a9f4);
+          --primary-color: var(--bento-primary);
+          --bg-color: var(--bento-card);
+          --text-color: var(--bento-text);
+          --secondary-text: var(--bento-text-secondary);
+          --border-color: var(--bento-border);
+          --hover-bg: var(--bento-primary-light);
+          --accent: var(--bento-primary);
         }
-        .exporter-card {
+        .card {
           background: var(--bg-color);
           border-radius: 12px;
           padding: 16px;
           font-family: var(--ha-card-header-font-family, inherit);
           color: var(--text-color);
+          overflow: visible;
+          min-width: 0;
         }
         .card-header {
           display: flex;
@@ -495,20 +1069,20 @@ canvas {
           margin-bottom: 12px;
           flex-wrap: wrap;
         }
-        .toolbar select, .toolbar input {
+        .toolbar select, .toolbar input[type="text"] {
           padding: 6px 10px;
-          border: 1px solid var(--border-color);
+          border: 1px solid var(--bento-border);
           border-radius: 6px;
-          background: var(--bg-color);
-          color: var(--text-color);
+          background: var(--bento-card);
+          color: var(--bento-text);
           font-size: 13px;
           outline: none;
         }
-        .toolbar input {
+        .toolbar input[type="text"] {
           flex: 1;
           min-width: 150px;
         }
-        .toolbar select:focus, .toolbar input:focus {
+        .toolbar select:focus, .toolbar input[type="text"]:focus {
           border-color: var(--accent);
         }
         .toolbar-spacer {
@@ -579,7 +1153,23 @@ canvas {
           cursor: pointer;
           width: 16px;
           height: 16px;
-          accent-color: var(--primary-color);
+          accent-color: var(--bento-primary);
+        }
+        .attrs-toggle-label {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+          cursor: pointer;
+          white-space: nowrap;
+          font-size: 13px;
+          font-weight: 400;
+          color: var(--bento-text, #1e293b);
+          padding: 5px 0;
+        }
+        .attrs-toggle-input {
+          margin: 0;
+          accent-color: var(--bento-primary);
+          cursor: pointer;
         }
         .expand-cell {
           width: 30px;
@@ -747,8 +1337,8 @@ canvas {
           color: #fff;
         }
         .btn-secondary {
-          background: var(--border-color);
-          color: var(--text-color);
+          background: var(--bento-border);
+          color: var(--bento-text);
         }
         .btn:disabled {
           opacity: 0.4;
@@ -756,10 +1346,10 @@ canvas {
         }
         .format-select {
           padding: 8px 10px;
-          border: 1px solid var(--border-color);
+          border: 1px solid var(--bento-border);
           border-radius: 6px;
-          background: var(--bg-color);
-          color: var(--text-color);
+          background: var(--bento-card);
+          color: var(--bento-text);
           font-size: 13px;
         }
         .pagination {
@@ -798,7 +1388,7 @@ canvas {
 
         /* RESPONSIVE */
         @media (max-width: 768px) {
-          .exporter-card { padding: 12px; }
+          .card { padding: 12px; }
           .card-header { flex-direction: column; gap: 8px; }
           .card-header h2 { font-size: 16px; }
           .entity-grid { grid-template-columns: 1fr !important; }
@@ -813,21 +1403,59 @@ canvas {
           .toolbar-spacer { display: none; }
           .btn-sm { padding: 5px 10px; font-size: 11px; }
           .export-option-sm { font-size: 11px; }
+          .snapshot-bar { flex-wrap: wrap !important; }
+          .export-option { white-space: nowrap; }
         }
         @media (max-width: 480px) {
           .tab { font-size: 11px; padding: 5px 8px; }
           .entity-grid { gap: 8px; }
-          .toolbar input { min-width: 100px; }
+          .toolbar input[type="text"] { min-width: 100px; }
           .toolbar select { padding: 4px 8px; font-size: 12px; }
           .btn-sm { padding: 4px 8px; font-size: 10px; }
         }
-      </style>
-      <ha-card>
-        <div class="exporter-card">
+      
+
+@media (prefers-color-scheme: dark) {
+  :host {
+    --bento-bg: var(--primary-background-color, #1a1a2e);
+    --bento-card: var(--card-background-color, #16213e);
+    --bento-text: var(--primary-text-color, #e2e8f0);
+    --bento-text-secondary: var(--secondary-text-color, #94a3b8);
+    --bento-border: var(--divider-color, #334155);
+    --bento-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+    --bento-shadow-md: 0 4px 12px rgba(0,0,0,0.4);
+  }
+}
+/* === DARK MODE ADDED - old comment below === */
+
+        /* === MOBILE FIX === */
+        @media (max-width: 768px) {
+          .tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 2px; }
+          .tab, .tab-btn, .tab-btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+          .card, .card-container { padding: 14px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+          .stat-val, .kpi-val, .metric-val { font-size: 18px; }
+          .stat-lbl, .kpi-lbl, .metric-lbl { font-size: 10px; }
+          .panels, .board { flex-direction: column; }
+          .column { min-width: unset; }
+          h2 { font-size: 18px; }
+          h3 { font-size: 15px; }
+        }
+        @media (max-width: 480px) {
+          .tabs { gap: 1px; }
+          .tab, .tab-btn, .tab-btn { padding: 5px 8px; font-size: 11px; }
+          .stats, .stats-grid, .summary-grid, .stat-cards, .kpi-grid, .metrics-grid { grid-template-columns: 1fr 1fr; }
+          .stat-val, .kpi-val, .metric-val { font-size: 16px; }
+        }
+
+</style>
+      
+        <div class="card">
           <div class="card-header">
-            <h2>${this._config.title}</h2>
-            <span class="stats" id="stats"></span>
+            <h2>${_esc(this._config.title)}</h2>
+            <div style="display:flex;align-items:center;gap:8px"><span class="stats" id="stats"></span><button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--bento-text-secondary,#64748b);cursor:pointer;display:inline-flex;align-items:center;gap:4px">${this._lang === 'pl' ? '\u2699\uFE0F Ustawienia' : '\u2699\uFE0F Settings'}</button></div>
           </div>
+          
           <div class="toolbar">
             <select id="domainFilter">
               <option value="all">All domains</option>
@@ -841,20 +1469,19 @@ canvas {
               <option value="yaml">YAML</option>
             </select>
             <button class="btn btn-primary btn-sm" id="exportBtn" disabled>Export Selected (0)</button>
-            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button>
-            <label class="export-option export-option-sm"><input type="checkbox" id="includeAttrs" checked /> Include attrs</label>
+            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button><label class="attrs-toggle-label"><input type="checkbox" id="includeAttrs" checked class="attrs-toggle-input" /> ${this._t.attributes}</label>
           </div>
-          <div class="snapshot-bar" style="display:flex;align-items:center;gap:12px;padding:8px 16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin:8px 0;font-size:12px;">
+          <div class="snapshot-bar" style="display:flex;align-items:center;gap:8px 12px;padding:8px 16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin:8px 0;font-size:12px;flex-wrap:wrap;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;">
               <input type="checkbox" id="snapshotEnabled" ${this._snapshotSettings.enabled ? 'checked' : ''} />
               Snapshots
             </label>
             <select id="snapshotInterval" style="padding:4px 8px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;font-size:12px;">
-              <option value="30" ${this._snapshotSettings.interval === 30 ? 'selected' : ''}>co 30s</option>
-              <option value="60" ${this._snapshotSettings.interval === 60 ? 'selected' : ''}>co 1 min</option>
-              <option value="300" ${this._snapshotSettings.interval === 300 ? 'selected' : ''}>co 5 min</option>
-              <option value="900" ${this._snapshotSettings.interval === 900 ? 'selected' : ''}>co 15 min</option>
-              <option value="3600" ${this._snapshotSettings.interval === 3600 ? 'selected' : ''}>co 1h</option>
+              <option value="30" ${this._snapshotSettings.interval === 30 ? 'selected' : ''}>${this._t.snapshotInterval30s}</option>
+              <option value="60" ${this._snapshotSettings.interval === 60 ? 'selected' : ''}>${this._t.snapshotInterval1min}</option>
+              <option value="300" ${this._snapshotSettings.interval === 300 ? 'selected' : ''}>${this._t.snapshotInterval5min}</option>
+              <option value="900" ${this._snapshotSettings.interval === 900 ? 'selected' : ''}>${this._t.snapshotInterval15min}</option>
+              <option value="3600" ${this._snapshotSettings.interval === 3600 ? 'selected' : ''}>${this._t.snapshotInterval1h}</option>
             </select>
             <select id="snapshotMax" style="padding:4px 8px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;font-size:12px;">
               <option value="20" ${this._snapshotSettings.maxSnapshots === 20 ? 'selected' : ''}>20 snap.</option>
@@ -862,9 +1489,9 @@ canvas {
               <option value="100" ${this._snapshotSettings.maxSnapshots === 100 ? 'selected' : ''}>100 snap.</option>
               <option value="200" ${this._snapshotSettings.maxSnapshots === 200 ? 'selected' : ''}>200 snap.</option>
             </select>
-            <span id="snapshotStatus" style="color:var(--bento-text-secondary,#64748b);">${this._snapshots.length} zapisanych</span>
-            <button id="snapshotNow" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;" title="Zr\u00F3b snapshot teraz">\u{1F4F8}</button>
-            <button id="snapshotClear" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;color:#ef4444;" title="Wyczy\u015B\u0107 snapshoty">\u{1F5D1}</button>
+            <span id="snapshotStatus" style="color:var(--bento-text-secondary,#64748b);">${this._snapshots.length} ${this._t.savedSnapshots}</span>
+            <button id="snapshotNow" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;" title="${this._t.takeSnapshot}" aria-label="${this._t.takeSnapshot}">\u{1F4F8}</button>
+            <button id="snapshotClear" style="padding:4px 10px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;background:var(--bento-card,#fff);cursor:pointer;font-size:11px;color:#ef4444;" title="${this._t.clearSnapshots}" aria-label="${this._t.clearSnapshots}">\u{1F5D1}</button>
           </div>
           <div class="table-container">
             <table class="entity-table">
@@ -883,9 +1510,21 @@ canvas {
             </table>
           </div>
           <div class="pagination" id="pagination"></div>
+        
+        <!-- Support / Donation -->
+        <div class="donate-section" data-source="ha-tools-split">
+          <div class="donate-text">
+            <h3>❤️ ${this._lang === 'pl' ? 'Wesprzyj rozwój HA Tools' : 'Support HA Tools Development'}</h3>
+            <p>${this._lang === 'pl' ? 'Jeśli to narzędzie ułatwia Ci życie z Home Assistant, rozważ wsparcie projektu. Każda kawa motywuje do dalszego rozwoju!' : 'If this tool makes your Home Assistant life easier, consider supporting the project. Every coffee motivates further development!'}</p>
+          </div>
+          <div class="donate-buttons">
+            <a class="donate-btn coffee" href="https://buymeacoffee.com/macsiem" target="_blank" rel="noopener noreferrer">☕ Buy Me a Coffee</a>
+            <a class="donate-btn paypal" href="https://www.paypal.com/donate/?hosted_button_id=Y967H4PLRBN8W" target="_blank" rel="noopener noreferrer">💳 PayPal</a>
+          </div>
         </div>
-      </ha-card>
-    `;
+        </div>
+      
+    `
     this._attachEvents();
   }
 
@@ -895,6 +1534,21 @@ canvas {
     const selectAll = this.shadowRoot.getElementById('selectAll');
     const exportBtn = this.shadowRoot.getElementById('exportBtn');
     const exportAllBtn = this.shadowRoot.getElementById('exportAllBtn');
+
+    // Settings info bar button
+    this.shadowRoot.getElementById('deGoSettingsBtn')?.addEventListener('click', () => {
+      let panel = null;
+      try {
+        const root = this.getRootNode();
+        if (root && root.host && root.host.tagName === 'HA-TOOLS-PANEL') panel = root.host;
+      } catch (e) { console.debug('[ha-data-exporter] caught:', e); }
+      if (!panel) panel = document.querySelector('ha-tools-panel');
+      if (panel && panel._navigateToSettings) {
+        panel._navigateToSettings('data-exporter');
+      } else {
+        this.dispatchEvent(new CustomEvent('navigate-settings', { bubbles: true, composed: true, detail: { section: 'data-exporter' } }));
+      }
+    });
 
     // Snapshot controls
     const snapEnabled = this.shadowRoot.getElementById('snapshotEnabled');
@@ -1004,7 +1658,7 @@ canvas {
       const count = Object.keys(this._hass.states).filter(id => id.startsWith(d + '.')).length;
       const opt = document.createElement('option');
       opt.value = d;
-      opt.textContent = d + ' (' + count + ')';
+      opt.textContent = _esc(d) + ' (' + count + ')';
       if (d === currentDomain) opt.selected = true;
       domainFilter.appendChild(opt);
     });
@@ -1038,12 +1692,12 @@ canvas {
         const attrKeys = Object.keys(attrs).filter(k => k !== 'friendly_name');
         const attrCount = attrKeys.length;
         tr.innerHTML = `
-          <td class="checkbox-cell"><input type="checkbox" data-entity="${ent.entity_id}" ${checked} /></td>
-          <td class="expand-cell"><button class="expand-btn" data-expand="${ent.entity_id}" title="Show attributes">▶</button></td>
-          <td class="entity-id" title="${ent.entity_id}">${ent.entity_id}</td>
-          <td title="${ent.name}">${ent.name}</td>
-          <td class="state-val" title="${ent.state}">${ent.state}</td>
-          <td>${ent.domain}</td>
+          <td class="checkbox-cell"><input type="checkbox" data-entity="${_esc(ent.entity_id)}" ${checked} /></td>
+          <td class="expand-cell"><button class="expand-btn" data-expand="${_esc(ent.entity_id)}" title="Show attributes" aria-label="Show attributes">▶</button></td>
+          <td class="entity-id" title="${_esc(ent.entity_id)}">${_esc(ent.entity_id)}</td>
+          <td title="${_esc(ent.name)}">${_esc(ent.name)}</td>
+          <td class="state-val" title="${_esc(ent.state)}">${_esc(ent.state)}</td>
+          <td>${_esc(ent.domain)}</td>
           <td><span class="attr-count">${attrCount}</span></td>
         `;
         tr.querySelector('input[type=checkbox]').addEventListener('change', (e) => {
@@ -1074,20 +1728,20 @@ canvas {
             const isComplex = typeof v === 'object' && v !== null;
             const displayVal = isComplex ? JSON.stringify(v) : String(v);
             const valClass = isComplex ? 'attr-val complex' : 'attr-val';
-            attrHtml += `<div class="attr-item"><span class="attr-key">${k}</span><span class="${valClass}" title="${displayVal.replace(/"/g, '&quot;')}">${displayVal}</span></div>`;
+            attrHtml += `<div class="attr-item"><span class="attr-key">${_esc(k)}</span><span class="${valClass}" title="${_esc(displayVal).replace(/"/g, '&quot;')}">${_esc(displayVal)}</span></div>`;
           });
         }
         attrHtml += '</div>';
         // History from HA API
-        attrHtml += `<div class="history-section"><div class="history-title">\u{1F4C8} Historia stan\u00F3w (24h z HA)</div><div class="history-list" id="history-${ent.entity_id.replace(/\./g, '_')}"><span class="history-loading">Kliknij aby za\u0142adowa\u0107...</span></div></div>`;
+        attrHtml += `<div class="history-section"><div class="history-title">\u{1F4C8} ${this._t.stateHistory}</div><div class="history-list" id="history-${ent.entity_id.replace(/\./g, '_')}"><span class="history-loading">${this._t.clickToLoad}</span></div></div>`;
         // Snapshot history (persisted)
         const snapHistory = this._getEntityHistory(ent.entity_id);
         if (snapHistory.length > 0) {
           const last10 = snapHistory.slice(-10).reverse();
-          attrHtml += '<div class="history-section"><div class="history-title">\u{1F4BE} Snapshoty (' + snapHistory.length + ' zapis\u00F3w)</div><div class="history-list">';
+          attrHtml += '<div class="history-section"><div class="history-title">\u{1F4BE} ' + this._t.snapshotsTitle + ' (' + snapHistory.length + ' ' + this._t.snapshots + ')</div><div class="history-list">';
           last10.forEach(h => {
             const t = new Date(h.ts).toLocaleString();
-            attrHtml += '<div class="history-item"><span class="history-time">' + t + '</span><span class="history-state">' + h.state + '</span><span style="font-size:11px;color:var(--bento-text-secondary,#64748b);">' + h.attrs + ' attrs</span></div>';
+            attrHtml += '<div class="history-item"><span class="history-time">' + t + '</span><span class="history-state">' + _esc(h.state) + '</span><span style="font-size:11px;color:var(--bento-text-secondary,#64748b);">' + h.attrs + ' attrs</span></div>';
           });
           attrHtml += '</div></div>';
         }
@@ -1171,6 +1825,15 @@ canvas {
     } else {
       data = entities;
     }
+
+    // Privacy: warn before exporting full state/attributes (entity names, locations,
+    // sensor values, optional attributes can contain sensitive data).
+    const PL = (this._lang === 'pl') || (this._hass?.language || '').startsWith('pl');
+    const includeAttrs = !!this._includeAttrsInExport;
+    const warn = PL
+      ? `Eksportowany plik (${format.toUpperCase()}) będzie zawierał ${data.length} encji wraz ze stanami${includeAttrs ? ' i atrybutami (mogą zawierać wrażliwe dane)' : ''}.\n\nNie wysyłaj go publicznie ani do zewnętrznych usług bez świadomej zgody.\n\nKontynuować?`
+      : `The export (${format.toUpperCase()}) will contain ${data.length} entities with states${includeAttrs ? ' and attributes (may contain sensitive data)' : ''}.\n\nDo not share publicly or with third-party services without informed consent.\n\nContinue?`;
+    if (!confirm(warn)) return;
 
     const exportData = data.map(e => {
       const row = {
@@ -1260,7 +1923,6 @@ canvas {
     return yaml;
   }
 
-
   // --- Pagination helper ---
   _renderPagination(tabName, totalItems) {
     if (!this._tabPages[tabName]) this._tabPages[tabName] = 1;
@@ -1298,7 +1960,7 @@ canvas {
       return;
     }
 
-    container.innerHTML = '<span class="history-loading">\u0141adowanie historii...</span>';
+    container.innerHTML = '<span class="history-loading">' + this._t.loadingHistory + '</span>';
 
     try {
       const end = new Date().toISOString();
@@ -1306,9 +1968,9 @@ canvas {
       const url = '/api/history/period/' + start + '?filter_entity_id=' + entityId + '&end_time=' + end + '&minimal_response&no_attributes';
       // Get auth token - try multiple paths
       let token = '';
-      try { token = this._hass.auth.data.access_token; } catch(e) {}
-      if (!token) try { token = this._hass.auth._data.access_token; } catch(e) {}
-      if (!token) try { token = this._hass.auth.accessToken; } catch(e) {}
+      try { token = this._hass.auth.data.access_token; } catch(e) { console.debug('[ha-data-exporter] caught:', e); }
+      if (!token) try { token = this._hass.auth._data.access_token; } catch(e) { console.debug('[ha-data-exporter] caught:', e); }
+      if (!token) try { token = this._hass.auth.accessToken; } catch(e) { console.debug('[ha-data-exporter] caught:', e); }
       const headers = token ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
       const resp = await fetch(url, { headers });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -1328,25 +1990,25 @@ canvas {
       this._historyCache[entityId] = { data: changes, ts: Date.now() };
       this._renderHistory(container, changes, entityId);
     } catch (err) {
-      container.innerHTML = '<span class="history-loading">Nie uda\u0142o si\u0119 pobra\u0107 historii: ' + err.message + '</span>';
+      container.innerHTML = '<span class="history-loading">' + this._t.loadHistoryError + ' ' + _esc(err.message) + '</span>';
     }
   }
 
   _renderHistory(container, changes, entityId) {
     if (!changes || changes.length === 0) {
-      container.innerHTML = '<span class="history-loading">Brak historii zmian w ostatnich 24h</span>';
+      container.innerHTML = '<span class="history-loading">' + this._t.noStateChanges + '</span>';
       return;
     }
     let html = '';
     changes.forEach((ch, i) => {
       const d = new Date(ch.time);
-      const timeStr = d.toLocaleString('pl-PL', { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit' });
+      const timeStr = d.toLocaleString((this._lang === 'pl' ? 'pl-PL' : 'en-US'), { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit' });
       const isCurrent = i === changes.length - 1;
       html += '<div class="history-item' + (isCurrent ? '' : '') + '">';
       html += '<span class="history-time">' + timeStr + '</span>';
       if (i > 0) html += '<span class="history-arrow">\u2192</span>';
-      html += '<span class="history-state">' + (ch.state || '?') + '</span>';
-      if (isCurrent) html += ' <span style="font-size:10px;color:var(--bento-primary)">(teraz)</span>';
+      html += '<span class="history-state">' + _esc(ch.state || '?') + '</span>';
+      if (isCurrent) html += ' <span style="font-size:10px;color:var(--bento-primary)">(' + this._t.now + ')</span>';
       html += '</div>';
     });
     container.innerHTML = html;
@@ -1377,6 +2039,52 @@ canvas {
 
 if (!customElements.get('ha-data-exporter')) { customElements.define('ha-data-exporter', HADataExporter); }
 
+console.info(
+  '%c  HA-DATA-EXPORTER  %c v1.0.0 ',
+  'background: #1976d2; color: #fff; font-weight: bold; padding: 2px 6px; border-radius: 4px 0 0 4px;',
+  'background: #e3f2fd; color: #1976d2; font-weight: bold; padding: 2px 6px; border-radius: 0 4px 4px 0;'
+);
+
+class HaDataExporterEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this._config = {};
+  }
+  setConfig(config) {
+    this._config = { ...config };
+    this._render();
+  }
+  _dispatch() {
+    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
+  }
+  _render() {
+    this.shadowRoot.innerHTML = `
+      <style>
+            :host { display:block; padding:16px; }
+            h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
+            input { outline:none; transition:border-color .2s; }
+            input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
+        </style>
+      <h3>Data Exporter</h3>
+            <div style="margin-bottom:12px;">
+              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
+              <input type="text" id="cf_title" value="${_esc(this._config?.title) || 'Data Exporter'}"
+                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
+            </div>
+    `;
+        const f_title = this.shadowRoot.querySelector('#cf_title');
+        if (f_title) f_title.addEventListener('input', (e) => {
+          this._config = { ...this._config, title: e.target.value };
+          this._dispatch();
+        });
+  }
+  connectedCallback() { this._render(); }
+}
+if (!customElements.get('ha-data-exporter-editor')) { customElements.define('ha-data-exporter-editor', HaDataExporterEditor); }
+
+})();
+
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: 'ha-data-exporter',
@@ -1384,9 +2092,3 @@ window.customCards.push({
   description: 'Export HA entities, states, and attributes to CSV/JSON/YAML',
   preview: true
 });
-
-console.info(
-  '%c  HA-DATA-EXPORTER  %c v1.0.0 ',
-  'background: #1976d2; color: #fff; font-weight: bold; padding: 2px 6px; border-radius: 4px 0 0 4px;',
-  'background: #e3f2fd; color: #1976d2; font-weight: bold; padding: 2px 6px; border-radius: 0 4px 4px 0;'
-);

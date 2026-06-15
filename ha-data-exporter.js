@@ -1,4 +1,4 @@
-/* HA Tools split — ha-data-exporter v4.1.6 (2026-06-07) — single-tool standalone repo */
+/* HA Tools split — ha-data-exporter v4.1.7 (2026-06-07) — single-tool standalone repo */
 (function() {
 'use strict';
 
@@ -22,6 +22,8 @@ if (typeof window !== 'undefined' && !window.HAToolsBentoCSS) {
    HA Tools — Bento Design System v2.0 (Premium)
    ═══════════════════════════════════════════════ */
 
+/* keyboard a11y */
+:focus-visible { outline: 2px solid var(--bento-primary, #6366f1); outline-offset: 2px; border-radius: 3px; }
 
 :host {
   /* Brand palette — diamond top, gradient-friendly */
@@ -2273,7 +2275,7 @@ canvas {
 if (!customElements.get('ha-data-exporter')) { customElements.define('ha-data-exporter', HADataExporter); }
 
 console.info(
-  '%c  HA-DATA-EXPORTER  %c v4.1.6 ',
+  '%c  HA-DATA-EXPORTER  %c v4.1.7 ',
   'background: #1976d2; color: #fff; font-weight: bold; padding: 2px 6px; border-radius: 4px 0 0 4px;',
   'background: #e3f2fd; color: #1976d2; font-weight: bold; padding: 2px 6px; border-radius: 0 4px 4px 0;'
 );

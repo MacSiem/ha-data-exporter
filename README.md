@@ -8,6 +8,10 @@ Export Home Assistant entity history to CSV / JSON.
 
 > Part of the [HA Tools](https://github.com/MacSiem) ecosystem — split into individual HACS-installable plugins.
 
+## Screenshot
+
+![Screenshot](screenshot.png)
+
 ## Installation (HACS)
 
 **Data Exporter is in the HACS default store** — no custom repository needed:

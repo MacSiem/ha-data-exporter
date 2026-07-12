@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DE screenshot harness</title>
+<style>
+  html, body { margin: 0; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body.light { background: #f4f5f7; }
+  body.light ha-data-exporter { --card-background-color: #ffffff; --primary-background-color: #f4f5f7; }
+  body.dark { background: #111318; }
+  body.dark ha-data-exporter { --card-background-color: #1c1e26; --primary-background-color: #111318; }
+  ha-data-exporter { display: block; width: 480px; }
+</style>
+</head>
+<body>
+<ha-data-exporter id="card"></ha-data-exporter>
+<script>
+  try { localStorage.setItem('ha-intro-dismissed-ha-data-exporter', '1'); } catch (e) {}
+</script>
+<script src="../../ha-data-exporter.js"></script>
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  const theme = params.get('theme') === 'dark' ? 'dark' : 'light';
+  document.body.className = theme;
+  const now = Date.now(); const h = 3600000; const min = 60000;
+
+  const mk = (id, name, state, attrs, lastChanged) => ({
+    entity_id: id, state,
+    attributes: Object.assign({ friendly_name: name }, attrs || {}),
+    last_changed: new Date(now - (lastChanged || h)).toISOString(),
+    last_updated: new Date(now - (lastChanged || h)).toISOString(),
+  });
+
+  const entities = [
+    mk('sensor.living_room_temperature', 'Living Room Temperature', '21.4', { unit_of_measurement: '°C', device_class: 'temperature', state_class: 'measurement' }, 6 * min),
+    mk('sensor.living_room_humidity', 'Living Room Humidity', '48', { unit_of_measurement: '%', device_class: 'humidity', state_class: 'measurement' }, 6 * min),
+    mk('sensor.outdoor_temperature', 'Outdoor Temperature', '14.2', { unit_of_measurement: '°C', device_class: 'temperature', state_class: 'measurement' }, 12 * min),
+    mk('sensor.house_power_consumption', 'House Power Consumption', '1240', { unit_of_measurement: 'W', device_class: 'power', state_class: 'measurement' }, 2 * min),
+    mk('light.living_room', 'Living Room Lights', 'on', { brightness: 180, color_temp_kelvin: 2700, supported_color_modes: ['color_temp'] }, 25 * min),
+    mk('light.kitchen', 'Kitchen Lights', 'off', { supported_color_modes: ['brightness'] }, 3 * h),
+    mk('light.bedroom_lamp', 'Bedroom Lamp', 'on', { brightness: 90 }, 40 * min),
+    mk('switch.coffee_maker', 'Coffee Maker', 'off', { device_class: 'outlet' }, 5 * h),
+    mk('switch.garden_sprinkler', 'Garden Sprinkler', 'off', { device_class: 'switch' }, 22 * h),
+    mk('binary_sensor.front_door', 'Front Door', 'off', { device_class: 'door' }, 1.5 * h),
+    mk('binary_sensor.hallway_motion', 'Hallway Motion', 'on', { device_class: 'motion' }, 90 * 1000),
+    mk('binary_sensor.kitchen_window', 'Kitchen Window', 'off', { device_class: 'window' }, 8 * h),
+    mk('climate.living_room_thermostat', 'Living Room Thermostat', 'heat', { current_temperature: 21, temperature: 22, hvac_action: 'heating' }, 6 * min),
+    mk('person.maciej', 'Maciej', 'home', { source: 'device_tracker.phone_maciej' }, 45 * min),
+    mk('sun.sun', 'Sun', 'above_horizon', { elevation: 38.2, azimuth: 210.5 }, 4 * h),
+    mk('weather.home', 'Home', 'sunny', { temperature: 15, humidity: 52, wind_speed: 12 }, 15 * min),
+  ];
+
+  const states = {};
+  entities.forEach(e => { states[e.entity_id] = e; });
+
+  // Minimal mock of HA's own /api/history/period/... — same-origin endpoint the
+  // card calls to render the 24h state-history list when a row is expanded.
+  const nativeFetch = window.fetch ? window.fetch.bind(window) : null;
+  window.fetch = async (url, opts) => {
+    const u = String(url);
+    if (u.includes('/api/history/period/')) {
+      const m = u.match(/filter_entity_id=([^&]+)/);
+      const entityId = m ? decodeURIComponent(m[1]) : '';
+      const ent = states[entityId];
+      const base = ent ? ent.state : 'unknown';
+      const points = [
+        { s: base, lu: new Date(now - 3 * h).toISOString() },
+        { s: base, lu: new Date(now - 2 * h).toISOString() },
+        { s: base, lu: new Date(now - 1 * h).toISOString() },
+        { s: base, lu: new Date(now - 10 * min).toISOString() },
+      ];
+      return { ok: true, json: async () => [points] };
+    }
+    if (nativeFetch) return nativeFetch(url, opts);
+    return { ok: false, status: 404, json: async () => ({}) };
+  };
+
+  const hass = {
+    language: 'en',
+    themes: { darkMode: theme === 'dark' },
+    states,
+    services: {},
+    auth: { data: { access_token: 'demo-token' } },
+    connection: { subscribeEvents: () => Promise.resolve(() => {}) },
+    callWS: async () => ({}),
+    callApi: async () => ({}),
+    callService: async () => ({}),
+  };
+
+  const card = document.getElementById('card');
+  card.setConfig({ type: 'custom:ha-data-exporter', title: 'Data Exporter' });
+  card.hass = hass;
+  setTimeout(() => { card.hass = Object.assign({}, hass); }, 400);
+  const scrub = () => { try { card.shadowRoot && card.shadowRoot.querySelectorAll('#tip-banner, [class*="banner"], .donate-section').forEach(n => n.remove()); } catch (e) {} };
+  setInterval(scrub, 150);
+  setTimeout(() => { scrub(); document.title = 'DE-READY'; }, 1300);
+})();
+</script>
+</body>
+</html>

@@ -75,6 +75,7 @@ domains:                    # restrict the browser to specific domains
   - sensor
   - light
   - switch
+storage_key: living_room    # separate snapshot storage per card instance
 ```
 
 ### Optional sidebar panel (`configuration.yaml`)
@@ -93,8 +94,8 @@ panel_custom:
 After restart, **Data Exporter** appears in the HA sidebar.
 
 > The card's visual editor currently only exposes the **Title** field. Set
-> `default_format`, `domains`, `show_attributes`, `show_select_all` or
-> `page_size` via YAML as shown above.
+> `default_format`, `domains`, `show_attributes`, `show_select_all`,
+> `page_size` or `storage_key` via YAML as shown above.
 
 ## Features
 
@@ -129,6 +130,13 @@ services without informed consent.
 **Where are snapshots stored?**
 In your browser's `localStorage`, per browser and per device. Clearing browser
 data removes them. Use CSV/JSON/YAML export for a permanent copy.
+
+**Can I keep separate snapshot histories per card instance?**
+Yes — set `storage_key: <name>` in the card YAML. Snapshots *and* snapshot
+settings (interval, retention, enabled state) are stored in `localStorage`
+under that name, so each card with its own `storage_key` gets an independent
+snapshot namespace. Cards without a `storage_key` all share the `default`
+namespace.
 
 **Which export formats are supported?**
 CSV, JSON and YAML, selectable per export. You can toggle whether attributes

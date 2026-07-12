@@ -49,7 +49,7 @@ no extra integration:
 sensors, lights, switches and binary sensors, export controls and the
 snapshot bar. Dark mode follows your Home Assistant theme automatically.*
 
-## Installation (HACS)
+## Installation
 
 **Data Exporter is in the HACS default store** (category: **Plugin** / Lovelace dashboard resource) — no custom repository needed:
 

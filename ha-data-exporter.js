@@ -1,4 +1,4 @@
-/* HA Tools split — ha-data-exporter v4.1.10 (2026-06-07) — single-tool standalone repo */
+/* HA Tools split — ha-data-exporter v4.1.11 (2026-06-07) — single-tool standalone repo */
 (function() {
 'use strict';
 
@@ -944,6 +944,11 @@ class HADataExporter extends HTMLElement {
       domains: config.domains || null,
       ...config
     };
+    // page_size is documented in the README but was never applied — the card
+    // kept its hardcoded default. Honour it (the in-card selector still wins
+    // afterwards, since it writes _pageSize directly).
+    const ps = parseInt(this._config.page_size, 10);
+    if (!isNaN(ps) && ps > 0) this._pageSize = ps;
   }
 
   getCardSize() {
@@ -1730,7 +1735,7 @@ canvas {
               <option value="yaml">YAML</option>
             </select>
             <button class="btn btn-primary btn-sm" id="exportBtn" disabled>Export Selected (0)</button>
-            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button><label class="attrs-toggle-label"><input type="checkbox" id="includeAttrs" checked class="attrs-toggle-input" /> ${this._t.attributes}</label>
+            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button><label class="attrs-toggle-label"><input type="checkbox" id="includeAttrs" ${this._config && this._config.show_attributes === false ? '' : 'checked'} class="attrs-toggle-input" /> ${this._t.attributes}</label>
           </div>
           <div class="snapshot-bar" style="display:flex;align-items:center;gap:8px 12px;padding:8px 16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin:8px 0;font-size:12px;flex-wrap:wrap;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;">

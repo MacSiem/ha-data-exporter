@@ -1,3 +1,7 @@
+## 4.1.11 (2026-07-18)
+
+- Fix: the documented page_size and show_attributes card options are now applied. Both were accepted by setConfig and then ignored (page size was hardcoded, the attributes checkbox always started checked).
+
 ## 4.1.10 (2026-07-18)
 
 - Fix (UI): the small accent dot before section titles no longer detaches from the title text (it was pushed to the opposite edge by the header's flex space-between); it is now pinned next to the title.

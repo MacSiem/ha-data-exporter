@@ -1,3 +1,11 @@
+## 4.1.12 (2026-08-28)
+
+- Isolation: Bento CSS is component-local and cannot be captured from `window.HAToolsBentoCSS` by load order.
+- Isolation: persistence is now card-local, removing `window._haToolsPersistence` load-order coupling while retaining existing localStorage keys.
+- Security: remove the suite-wide DOM/shadow-root injector; intro and support UI now render only inside this card.
+- Security: normalize arrays/objects before inherited HTML escaping, including persisted snapshot values.
+- Lifecycle: cancel deferred renders on disconnect; add isolation/XSS runtime regression coverage.
+
 ## 4.1.11 (2026-07-18)
 
 - Fix: the documented page_size and show_attributes card options are now applied. Both were accepted by setConfig and then ignored (page size was hardcoded, the attributes checkbox always started checked).

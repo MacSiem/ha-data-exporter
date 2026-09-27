@@ -48,9 +48,9 @@ no extra integration:
 |---|---|
 | ![Data Exporter, light theme](docs/screenshots/card-main-light.png) | ![Data Exporter, dark theme](docs/screenshots/card-main-dark.png) |
 
-*The entity browser: domain filter, search, sortable table with a mix of
-sensors, lights, switches and binary sensors, export controls and the
-snapshot bar. Dark mode follows your Home Assistant theme automatically.*
+*The entity browser with synthetic entity names: domain filter, search,
+sortable table, export controls and snapshot bar. Dark mode follows your Home
+Assistant theme.*
 
 ## Installation
 

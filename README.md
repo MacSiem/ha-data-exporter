@@ -161,6 +161,8 @@ If this tool makes your Home Assistant life easier, consider supporting the proj
 - [☕ Buy Me a Coffee](https://buymeacoffee.com/macsiem)
 - [💳 PayPal](https://www.paypal.com/donate/?hosted_button_id=Y967H4PLRBN8W)
 
+The optional in-card support link is shown only to administrators. Dismiss it in the card or set `show_support: false` in the card configuration.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

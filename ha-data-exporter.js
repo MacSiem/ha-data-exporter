@@ -512,17 +512,10 @@ const _LOCAL_INTRO = {
   headline: "Browse, filter, and export Home Assistant entity data.",
   steps: ["Filter by domain or search entities live.","Take a snapshot or export selection to CSV / JSON.","Privacy warning before downloading attributes with sensitive data."]
 };
-const _LOCAL_DONATE_HTML = ''
-  + '<div class="donate-section" data-source="ha-data-exporter">'
-  + '  <div class="donate-text">'
-  + '    <h3>❤️ Support HA Tools Development</h3>'
-  + '    <p>If this tool makes your Home Assistant life easier, consider supporting the project. Every coffee motivates further development!</p>'
-  + '  </div>'
-  + '  <div class="donate-buttons">'
-  + '    <a class="donate-btn coffee" href="https://buymeacoffee.com/macsiem" target="_blank" rel="noopener noreferrer">☕ Buy Me a Coffee</a>'
-  + '    <a class="donate-btn paypal" href="https://www.paypal.com/donate/?hosted_button_id=Y967H4PLRBN8W" target="_blank" rel="noopener noreferrer">💳 PayPal</a>'
-  + '  </div>'
-  + '</div>';
+const _LOCAL_SUPPORT_KEY = 'ha-data-exporter-support-dismissed';
+const _LOCAL_DONATE_HTML = '<div class="donate-section" data-source="own-card" style="margin:8px 0;padding:8px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px"><span>❤️ Support HA Tools:</span><a href="https://buymeacoffee.com/macsiem" target="_blank" rel="noopener noreferrer">Buy Me a Coffee</a><button type="button" class="support-dismiss" aria-label="Dismiss support link" style="margin-left:auto">×</button></div>';
+function _localSupportDismissed() { try { return localStorage.getItem(_LOCAL_SUPPORT_KEY) === '1'; } catch (_) { return false; } }
+function _bindLocalSupportDismiss(root) { root.querySelector('.support-dismiss')?.addEventListener('click', () => { try { localStorage.setItem(_LOCAL_SUPPORT_KEY, '1'); } catch (_) {} root.querySelector('.donate-section[data-source="own-card"]')?.remove(); }); }
 function _localIntroDismissed() {
   try { return localStorage.getItem(_LOCAL_INTRO_KEY) === '1'; } catch(e) { return false; }
 }
@@ -786,6 +779,7 @@ class HADataExporter extends HTMLElement {
     // afterwards, since it writes _pageSize directly).
     const ps = parseInt(this._config.page_size, 10);
     if (!isNaN(ps) && ps > 0) this._pageSize = ps;
+    if (this._hass) this._render();
   }
 
   getCardSize() {
@@ -1615,9 +1609,10 @@ canvas {
           <div class="pagination" id="pagination"></div>
         
         </div>
-        ${_LOCAL_DONATE_HTML}
+        ${this._hass?.user?.is_admin && this._config?.show_support !== false && !_localSupportDismissed() ? _LOCAL_DONATE_HTML : ''}
     `
     _bindLocalIntroDismiss(this.shadowRoot);
+    _bindLocalSupportDismiss(this.shadowRoot);
     this._attachEvents();
   }
 

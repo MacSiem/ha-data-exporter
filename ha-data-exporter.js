@@ -1908,7 +1908,47 @@ canvas {
     exportBtn.disabled = count === 0;
   }
 
-  _export(mode) {
+  async _loadRegistryMetadata() {
+    const [entities, devices, areas] = await Promise.all([
+      this._hass.callWS({ type: 'config/entity_registry/list' }),
+      this._hass.callWS({ type: 'config/device_registry/list' }),
+      this._hass.callWS({ type: 'config/area_registry/list' })
+    ]);
+    return {
+      entities: new Map(entities.map(entry => [entry.entity_id, entry])),
+      devices: new Map(devices.map(entry => [entry.id, entry])),
+      areas: new Map(areas.map(entry => [entry.area_id, entry]))
+    };
+  }
+
+  _buildExportData(data, metadata) {
+    return data.map(e => {
+      const entity = metadata.entities.get(e.entity_id);
+      const deviceId = entity?.device_id || '';
+      const device = metadata.devices.get(deviceId);
+      const areaId = entity?.area_id || device?.area_id || '';
+      const area = metadata.areas.get(areaId);
+      const row = {
+        entity_id: e.entity_id,
+        friendly_name: e.name,
+        state: e.state,
+        domain: e.domain,
+        last_changed: e.last_changed,
+        device_id: deviceId,
+        device_name: device?.name_by_user || device?.name || '',
+        area_id: areaId,
+        area_name: area?.name || ''
+      };
+      if (this._includeAttrsInExport) {
+        const attrs = { ...e.attributes };
+        delete attrs.friendly_name;
+        row.attributes = attrs;
+      }
+      return row;
+    });
+  }
+
+  async _export(mode) {
     const format = this.shadowRoot.getElementById('formatSelect').value;
     const entities = this._getFilteredEntities();
     let data;
@@ -1928,21 +1968,16 @@ canvas {
       : `The export (${format.toUpperCase()}) will contain ${data.length} entities with states${includeAttrs ? ' and attributes (may contain sensitive data)' : ''}.\n\nDo not share publicly or with third-party services without informed consent.\n\nContinue?`;
     if (!confirm(warn)) return;
 
-    const exportData = data.map(e => {
-      const row = {
-        entity_id: e.entity_id,
-        friendly_name: e.name,
-        state: e.state,
-        domain: e.domain,
-        last_changed: e.last_changed
-      };
-      if (this._includeAttrsInExport) {
-        const attrs = { ...e.attributes };
-        delete attrs.friendly_name;
-        row.attributes = attrs;
-      }
-      return row;
-    });
+    let metadata;
+    try {
+      metadata = await this._loadRegistryMetadata();
+    } catch (error) {
+      console.error('[ha-data-exporter] Registry lookup failed:', error);
+      alert(PL ? 'Nie udało się pobrać rejestrów encji, urządzeń i obszarów. Eksport przerwany.'
+        : 'Could not load entity, device and area registries. Export cancelled.');
+      return;
+    }
+    const exportData = this._buildExportData(data, metadata);
 
     let content, mime, ext;
 
@@ -1971,7 +2006,7 @@ canvas {
 
   _toCSV(data) {
     if (data.length === 0) return '';
-    const baseHeaders = ['entity_id', 'friendly_name', 'state', 'domain', 'last_changed'];
+    const baseHeaders = ['entity_id', 'friendly_name', 'state', 'domain', 'last_changed', 'device_id', 'device_name', 'area_id', 'area_name'];
     const attrKeys = new Set();
     if (this._includeAttrsInExport) {
       data.forEach(row => {
@@ -1983,9 +2018,13 @@ canvas {
     const headers = [...baseHeaders, ...[...attrKeys].sort()];
     const escape = (val) => {
       const str = val === null || val === undefined ? '' : String(val);
-      return str.includes(',') || str.includes('"') || str.includes('\n')
-        ? '"' + str.replace(/"/g, '""') + '"'
-        : str;
+      // Entity states and attributes can contain spreadsheet formulas. Keep
+      // actual numbers numeric while forcing untrusted formula-like text inert.
+      const unsafe = typeof val === 'string' && /^[\s\u0000-\u001f]*[=+\-@]/.test(str);
+      const safe = unsafe ? "'" + str : str;
+      return unsafe || /[,"\r\n\t]/.test(safe)
+        ? '"' + safe.replace(/"/g, '""') + '"'
+        : safe;
     };
     const rows = [headers.map(escape).join(',')];
     data.forEach(row => {
@@ -2001,15 +2040,19 @@ canvas {
   _toYAML(data) {
     let yaml = '';
     data.forEach(item => {
-      yaml += `- entity_id: "${item.entity_id}"\n`;
-      yaml += `  friendly_name: "${item.friendly_name}"\n`;
-      yaml += `  state: "${item.state}"\n`;
-      yaml += `  domain: "${item.domain}"\n`;
-      yaml += `  last_changed: "${item.last_changed}"\n`;
+      yaml += `- entity_id: ${JSON.stringify(item.entity_id)}\n`;
+      yaml += `  friendly_name: ${JSON.stringify(item.friendly_name)}\n`;
+      yaml += `  state: ${JSON.stringify(item.state)}\n`;
+      yaml += `  domain: ${JSON.stringify(item.domain)}\n`;
+      yaml += `  last_changed: ${JSON.stringify(item.last_changed)}\n`;
+      yaml += `  device_id: ${JSON.stringify(item.device_id)}\n`;
+      yaml += `  device_name: ${JSON.stringify(item.device_name)}\n`;
+      yaml += `  area_id: ${JSON.stringify(item.area_id)}\n`;
+      yaml += `  area_name: ${JSON.stringify(item.area_name)}\n`;
       if (item.attributes && Object.keys(item.attributes).length > 0) {
         yaml += `  attributes:\n`;
         Object.entries(item.attributes).forEach(([k, v]) => {
-          yaml += `    ${k}: ${JSON.stringify(v)}\n`;
+          yaml += `    ${JSON.stringify(k)}: ${JSON.stringify(v ?? null)}\n`;
         });
       }
     });

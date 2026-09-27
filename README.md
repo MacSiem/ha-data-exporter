@@ -23,8 +23,11 @@ no extra integration:
    attribute set and, on demand, its last 24h of state changes fetched from
    your own Home Assistant instance (`/api/history/period`).
 3. **Export on your terms.** Select rows (or export everything currently
-   filtered) as CSV, JSON or YAML, with attributes optionally included. A
-   privacy confirmation is shown before every download.
+   filtered) as CSV, JSON or YAML, with attributes optionally included. The
+   export also joins Home Assistant's entity, device and area registries to
+   include device and area IDs and names. An entity's own area assignment takes
+   precedence over its device's area. A privacy confirmation is shown before
+   every download.
 4. **Optional local snapshots.** Turn on periodic snapshots (interval from
    30s to 1h) to build a lightweight, browser-local trend history per entity
    — independent of HA's recorder/history retention.
@@ -104,7 +107,9 @@ After restart, **Data Exporter** appears in the HA sidebar.
 - Expandable per-entity attribute view, plus on-demand 24h state history from
   Home Assistant's own history API.
 - Export selected entities, or everything currently filtered, to **CSV, JSON
-  or YAML** — with attributes optionally included.
+  or YAML** — with device and area columns and attributes optionally included.
+- CSV protects spreadsheet cells containing formula-like text; numeric values
+  stay numeric.
 - Privacy confirmation dialog before every export.
 - Optional periodic snapshots (30s–1h interval, 20–200 kept) for a
   browser-local trend history per entity, independent of HA's recorder.
@@ -118,10 +123,10 @@ After restart, **Data Exporter** appears in the HA sidebar.
 No. Add the card and it lists every entity in your Home Assistant instance by itself.
 
 **Does this send my data anywhere?**
-No third-party or cloud calls. The only network request the card makes is to
-your **own** Home Assistant instance's REST API (`/api/history/period`), and
-only when you expand an entity row to load its 24h history — exactly like a
-native HA history card. Exports are generated and downloaded entirely in your
+No third-party or cloud calls. On export, the card reads the entity, device and
+area registries through your **own** Home Assistant WebSocket API. Expanding an
+entity row loads its 24h history from your Home Assistant REST API
+(`/api/history/period`). Exports are generated and downloaded entirely in your
 browser; nothing is uploaded. Because exported files can contain entity names,
 locations and sensor values, the card shows a confirmation dialog before every
 download and warns you not to share exports publicly or with third-party

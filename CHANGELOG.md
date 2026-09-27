@@ -1,3 +1,10 @@
+## Unreleased
+
+- Add entity, device and area registry metadata to CSV, JSON and YAML exports (issue #1); entity area overrides device area.
+- Cancel export with a visible error when registry data cannot be loaded, instead of producing an incomplete file.
+- Neutralize formula-like CSV text from states, names and attributes before spreadsheet import.
+- Quote YAML values and attribute keys so names with quotes or newlines cannot alter the exported document.
+
 ## 4.1.12 (2026-08-28)
 
 - Isolation: Bento CSS is component-local and cannot be captured from `window.HAToolsBentoCSS` by load order.

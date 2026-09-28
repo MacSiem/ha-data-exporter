@@ -787,7 +787,7 @@ class HADataExporter extends HTMLElement {
   }
 
   getGridOptions() {
-    return { rows: 6, columns: 12, min_rows: 3, min_columns: 6 };
+    return { columns: 12, min_rows: 3, min_columns: 6 };
   }
 
   static getConfigElement() {

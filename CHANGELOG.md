@@ -1,4 +1,4 @@
-## Unreleased
+## 4.1.13 (2026-09-29)
 
 - Add entity, device and area registry metadata to CSV, JSON and YAML exports (issue #1); entity area overrides device area.
 - Cancel export with a visible error when registry data cannot be loaded, instead of producing an incomplete file.

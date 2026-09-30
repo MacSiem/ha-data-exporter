@@ -166,3 +166,9 @@ The optional in-card support link is shown only to administrators. Dismiss it in
 ## License
 
 MIT — see [LICENSE](LICENSE).
+
+## Privacy and data
+
+Exports are downloaded by your browser and may contain entity names, device/area labels, states and attributes. Review the privacy confirmation and selected fields before downloading. Keep exports private; use synthetic records when reporting a bug.
+
+See [SECURITY.md](SECURITY.md) for safe vulnerability reporting and [NOTICE](NOTICE) for licensing notices.

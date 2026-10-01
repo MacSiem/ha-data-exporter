@@ -1549,7 +1549,7 @@ canvas {
         ${_renderLocalIntro()}
         <div class="card">
           <div class="card-header">
-            <h2>${_esc(this._config.title)}</h2>
+            <h2>${_esc(this._config.title || 'Data Exporter')}</h2>
             <div style="display:flex;align-items:center;gap:8px"><span class="stats" id="stats"></span><button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--bento-text-secondary,#64748b);cursor:pointer;display:inline-flex;align-items:center;gap:4px">${this._lang === 'pl' ? '\u2699\uFE0F Ustawienia' : '\u2699\uFE0F Settings'}</button></div>
           </div>
           

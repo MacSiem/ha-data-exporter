@@ -710,12 +710,16 @@ class HADataExporter extends HTMLElement {
   _refreshLocaleControls() {
     // Update translated controls in place: export choices and focused inputs keep their DOM.
     const t = this._t;
-    const attributesLabel = this.shadowRoot.getElementById('includeAttrs')?.parentElement;
+    const attributes = this.shadowRoot.getElementById('includeAttrs');
+    if (attributes) attributes.setAttribute('aria-label', t.attributes);
+    const attributesLabel = attributes?.parentElement;
     if (attributesLabel?.lastChild?.nodeType === Node.TEXT_NODE) attributesLabel.lastChild.textContent = ' ' + t.attributes;
     for (const [id, label] of [['snapshotNow', t.takeSnapshot], ['snapshotClear', t.clearSnapshots]]) {
       const button = this.shadowRoot.getElementById(id);
       if (button) { button.title = label; button.setAttribute('aria-label', label); }
     }
+    const settings = this.shadowRoot.getElementById('deGoSettingsBtn');
+    if (settings) settings.textContent = '\u2699\uFE0F ' + t.settings;
     const interval = this.shadowRoot.getElementById('snapshotInterval');
     const labels = { 30: t.snapshotInterval30s, 60: t.snapshotInterval1min, 300: t.snapshotInterval5min, 900: t.snapshotInterval15min, 3600: t.snapshotInterval1h };
     for (const option of interval?.options || []) option.textContent = labels[option.value] || option.textContent;
@@ -732,6 +736,7 @@ class HADataExporter extends HTMLElement {
         refresh: 'Od\u015bwie\u017c',
         save: 'Zapisz',
         cancel: 'Anuluj',
+        settings: 'Ustawienia',
         savedSnapshots: 'zapisanych',
         attributes: 'Atrybuty',
         takeSnapshot: 'Zr\u00f3b snapshot teraz',
@@ -759,6 +764,7 @@ class HADataExporter extends HTMLElement {
         refresh: 'Refresh',
         save: 'Save',
         cancel: 'Cancel',
+        settings: 'Settings',
         savedSnapshots: 'saved',
         attributes: 'Attributes',
         takeSnapshot: 'Take snapshot now',
@@ -1568,7 +1574,7 @@ canvas {
         <div class="card">
           <div class="card-header">
             <h2>${_esc(this._config.title || 'Data Exporter')}</h2>
-            <div style="display:flex;align-items:center;gap:8px"><span class="stats" id="stats"></span><button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--bento-text-secondary,#64748b);cursor:pointer;display:inline-flex;align-items:center;gap:4px">${this._lang === 'pl' ? '\u2699\uFE0F Ustawienia' : '\u2699\uFE0F Settings'}</button></div>
+            <div style="display:flex;align-items:center;gap:8px"><span class="stats" id="stats"></span><button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--bento-text-secondary,#64748b);cursor:pointer;display:inline-flex;align-items:center;gap:4px">${'\u2699\uFE0F ' + this._t.settings}</button></div>
           </div>
           
           <div class="toolbar">
@@ -1584,7 +1590,7 @@ canvas {
               <option value="yaml">YAML</option>
             </select>
             <button class="btn btn-primary btn-sm" id="exportBtn" disabled>Export Selected (0)</button>
-            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button><label class="attrs-toggle-label"><input type="checkbox" id="includeAttrs" ${this._config && this._config.show_attributes === false ? '' : 'checked'} class="attrs-toggle-input" /> ${this._t.attributes}</label>
+            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button><label class="attrs-toggle-label"><input type="checkbox" id="includeAttrs" aria-label="${this._t.attributes}" ${this._config && this._config.show_attributes === false ? '' : 'checked'} class="attrs-toggle-input" /> ${this._t.attributes}</label>
           </div>
           <div class="snapshot-bar" style="display:flex;align-items:center;gap:8px 12px;padding:8px 16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin:8px 0;font-size:12px;flex-wrap:wrap;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;">

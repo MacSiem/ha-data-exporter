@@ -1,6 +1,7 @@
 ## Unreleased — ordinary language updates
 
-- Refresh existing snapshot controls and the attributes label immediately when Home Assistant language changes.
+- Refresh existing snapshot controls, settings navigation and the attributes label immediately when Home Assistant language changes.
+- Keep the attributes checkbox accessible name in the current language, including when the browser caches a previous inferred label.
 - Update translated controls in place to retain selected entities, export format, attribute choice, snapshot interval and focused search selection.
 
 ## 4.1.13 (2026-09-29)

@@ -57,3 +57,26 @@ test('two cards keep independent languages without export or history reads',()=>
     assert.equal(f.reads.length,0);
   } finally {f.dom.window.close();}
 });
+
+
+test('ordinary language updates refresh the already translated settings navigation button',()=>{
+  const f=fixture(),c=f.card();
+  try {
+    c.hass={...f.hass,language:'pl'};
+    assert.match(c.shadowRoot.querySelector('#deGoSettingsBtn').textContent,/Ustawienia/);
+    c.hass={...f.hass,language:'en'};
+    assert.match(c.shadowRoot.querySelector('#deGoSettingsBtn').textContent,/Settings/);
+    assert.equal(f.reads.length,0);
+  } finally {f.dom.window.close();}
+});
+
+test('language updates set the checkbox accessible label explicitly to avoid a cached old browser name',()=>{
+  const f=fixture(),c=f.card();
+  try {
+    c.hass={...f.hass,language:'pl'};
+    assert.equal(c.shadowRoot.querySelector('#includeAttrs').getAttribute('aria-label'),'Atrybuty');
+    c.hass={...f.hass,language:'en'};
+    assert.equal(c.shadowRoot.querySelector('#includeAttrs').getAttribute('aria-label'),'Attributes');
+    assert.equal(f.reads.length,0);
+  } finally {f.dom.window.close();}
+});

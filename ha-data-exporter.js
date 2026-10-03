@@ -676,7 +676,9 @@ class HADataExporter extends HTMLElement {
       this.classList.toggle('bento-dark', _d);
     } catch (e) {}
 
-    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
+    const previousLanguage = this._lang;
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';
+    this._hass = hass;
     if (!hass) return;
     const now = Date.now();
     if (!this._firstHassRender) {
@@ -686,6 +688,7 @@ class HADataExporter extends HTMLElement {
       this._lastRenderTime = now;
       return;
     }
+    if (previousLanguage !== this._lang) this._refreshLocaleControls();
     if (now - (this._lastRenderTime || 0) < 10000) {
       if (!this._renderScheduled) {
         this._renderScheduled = true;
@@ -703,6 +706,21 @@ class HADataExporter extends HTMLElement {
     this._lastRenderTime = now;
   }
 
+
+  _refreshLocaleControls() {
+    // Update translated controls in place: export choices and focused inputs keep their DOM.
+    const t = this._t;
+    const attributesLabel = this.shadowRoot.getElementById('includeAttrs')?.parentElement;
+    if (attributesLabel?.lastChild?.nodeType === Node.TEXT_NODE) attributesLabel.lastChild.textContent = ' ' + t.attributes;
+    for (const [id, label] of [['snapshotNow', t.takeSnapshot], ['snapshotClear', t.clearSnapshots]]) {
+      const button = this.shadowRoot.getElementById(id);
+      if (button) { button.title = label; button.setAttribute('aria-label', label); }
+    }
+    const interval = this.shadowRoot.getElementById('snapshotInterval');
+    const labels = { 30: t.snapshotInterval30s, 60: t.snapshotInterval1min, 300: t.snapshotInterval5min, 900: t.snapshotInterval15min, 3600: t.snapshotInterval1h };
+    for (const option of interval?.options || []) option.textContent = labels[option.value] || option.textContent;
+    this._updateSnapshotStatus();
+  }
 
   get _t() {
     const T = {

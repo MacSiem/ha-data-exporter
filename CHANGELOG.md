@@ -1,3 +1,8 @@
+## Unreleased — ordinary language updates
+
+- Refresh existing snapshot controls and the attributes label immediately when Home Assistant language changes.
+- Update translated controls in place to retain selected entities, export format, attribute choice, snapshot interval and focused search selection.
+
 ## 4.1.13 (2026-09-29)
 
 - Show the default title in the sidebar panel when Home Assistant does not call Lovelace setConfig; retain custom card titles.

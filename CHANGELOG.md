@@ -1,3 +1,17 @@
+## Unreleased — ordinary language updates
+
+- Refresh existing snapshot controls, settings navigation and the attributes label immediately when Home Assistant language changes.
+- Keep the attributes checkbox accessible name in the current language, including when the browser caches a previous inferred label.
+- Update translated controls in place to retain selected entities, export format, attribute choice, snapshot interval and focused search selection.
+
+## 4.1.13 (2026-09-29)
+
+- Show the default title in the sidebar panel when Home Assistant does not call Lovelace setConfig; retain custom card titles.
+- Add entity, device and area registry metadata to CSV, JSON and YAML exports (issue #1); entity area overrides device area.
+- Cancel export with a visible error when registry data cannot be loaded, instead of producing an incomplete file.
+- Neutralize formula-like CSV text from states, names and attributes before spreadsheet import.
+- Quote YAML values and attribute keys so names with quotes or newlines cannot alter the exported document.
+
 ## 4.1.12 (2026-08-28)
 
 - Isolation: Bento CSS is component-local and cannot be captured from `window.HAToolsBentoCSS` by load order.

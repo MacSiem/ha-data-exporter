@@ -1,4 +1,4 @@
-/* HA Tools split — ha-data-exporter v4.1.12 (2026-08-28) — single-tool standalone repo */
+/* HA Tools split — ha-data-exporter v4.1.13 (2026-09-29) — single-tool standalone repo */
 (function() {
 'use strict';
 
@@ -512,17 +512,10 @@ const _LOCAL_INTRO = {
   headline: "Browse, filter, and export Home Assistant entity data.",
   steps: ["Filter by domain or search entities live.","Take a snapshot or export selection to CSV / JSON.","Privacy warning before downloading attributes with sensitive data."]
 };
-const _LOCAL_DONATE_HTML = ''
-  + '<div class="donate-section" data-source="ha-data-exporter">'
-  + '  <div class="donate-text">'
-  + '    <h3>❤️ Support HA Tools Development</h3>'
-  + '    <p>If this tool makes your Home Assistant life easier, consider supporting the project. Every coffee motivates further development!</p>'
-  + '  </div>'
-  + '  <div class="donate-buttons">'
-  + '    <a class="donate-btn coffee" href="https://buymeacoffee.com/macsiem" target="_blank" rel="noopener noreferrer">☕ Buy Me a Coffee</a>'
-  + '    <a class="donate-btn paypal" href="https://www.paypal.com/donate/?hosted_button_id=Y967H4PLRBN8W" target="_blank" rel="noopener noreferrer">💳 PayPal</a>'
-  + '  </div>'
-  + '</div>';
+const _LOCAL_SUPPORT_KEY = 'ha-data-exporter-support-dismissed';
+const _LOCAL_DONATE_HTML = '<div class="donate-section" data-source="own-card" style="margin:8px 0 0;padding:4px 0;background:none;border:0;box-shadow:none;min-height:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex-direction:row;justify-content:flex-start;text-align:left"><a href="https://buymeacoffee.com/macsiem" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--secondary-text-color,#64748b);font-weight:400;text-decoration:underline">Optional support for HA Tools</a><button type="button" class="support-dismiss" aria-label="Dismiss support link" style="margin-left:auto;padding:2px 6px;min-height:0;line-height:1;border:0;background:none;color:var(--secondary-text-color,#64748b);cursor:pointer">×</button></div>';
+function _localSupportDismissed() { try { return localStorage.getItem(_LOCAL_SUPPORT_KEY) === '1'; } catch (_) { return false; } }
+function _bindLocalSupportDismiss(root) { root.querySelector('.support-dismiss')?.addEventListener('click', () => { try { localStorage.setItem(_LOCAL_SUPPORT_KEY, '1'); } catch (_) {} root.querySelector('.donate-section[data-source="own-card"]')?.remove(); }); }
 function _localIntroDismissed() {
   try { return localStorage.getItem(_LOCAL_INTRO_KEY) === '1'; } catch(e) { return false; }
 }
@@ -683,7 +676,9 @@ class HADataExporter extends HTMLElement {
       this.classList.toggle('bento-dark', _d);
     } catch (e) {}
 
-    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';    this._hass = hass;
+    const previousLanguage = this._lang;
+    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';
+    this._hass = hass;
     if (!hass) return;
     const now = Date.now();
     if (!this._firstHassRender) {
@@ -693,6 +688,7 @@ class HADataExporter extends HTMLElement {
       this._lastRenderTime = now;
       return;
     }
+    if (previousLanguage !== this._lang) this._refreshLocaleControls();
     if (now - (this._lastRenderTime || 0) < 10000) {
       if (!this._renderScheduled) {
         this._renderScheduled = true;
@@ -711,6 +707,25 @@ class HADataExporter extends HTMLElement {
   }
 
 
+  _refreshLocaleControls() {
+    // Update translated controls in place: export choices and focused inputs keep their DOM.
+    const t = this._t;
+    const attributes = this.shadowRoot.getElementById('includeAttrs');
+    if (attributes) attributes.setAttribute('aria-label', t.attributes);
+    const attributesLabel = attributes?.parentElement;
+    if (attributesLabel?.lastChild?.nodeType === Node.TEXT_NODE) attributesLabel.lastChild.textContent = ' ' + t.attributes;
+    for (const [id, label] of [['snapshotNow', t.takeSnapshot], ['snapshotClear', t.clearSnapshots]]) {
+      const button = this.shadowRoot.getElementById(id);
+      if (button) { button.title = label; button.setAttribute('aria-label', label); }
+    }
+    const settings = this.shadowRoot.getElementById('deGoSettingsBtn');
+    if (settings) settings.textContent = '\u2699\uFE0F ' + t.settings;
+    const interval = this.shadowRoot.getElementById('snapshotInterval');
+    const labels = { 30: t.snapshotInterval30s, 60: t.snapshotInterval1min, 300: t.snapshotInterval5min, 900: t.snapshotInterval15min, 3600: t.snapshotInterval1h };
+    for (const option of interval?.options || []) option.textContent = labels[option.value] || option.textContent;
+    this._updateSnapshotStatus();
+  }
+
   get _t() {
     const T = {
       pl: {
@@ -721,6 +736,7 @@ class HADataExporter extends HTMLElement {
         refresh: 'Od\u015bwie\u017c',
         save: 'Zapisz',
         cancel: 'Anuluj',
+        settings: 'Ustawienia',
         savedSnapshots: 'zapisanych',
         attributes: 'Atrybuty',
         takeSnapshot: 'Zr\u00f3b snapshot teraz',
@@ -748,6 +764,7 @@ class HADataExporter extends HTMLElement {
         refresh: 'Refresh',
         save: 'Save',
         cancel: 'Cancel',
+        settings: 'Settings',
         savedSnapshots: 'saved',
         attributes: 'Attributes',
         takeSnapshot: 'Take snapshot now',
@@ -786,6 +803,7 @@ class HADataExporter extends HTMLElement {
     // afterwards, since it writes _pageSize directly).
     const ps = parseInt(this._config.page_size, 10);
     if (!isNaN(ps) && ps > 0) this._pageSize = ps;
+    if (this._hass) this._render();
   }
 
   getCardSize() {
@@ -793,7 +811,7 @@ class HADataExporter extends HTMLElement {
   }
 
   getGridOptions() {
-    return { rows: 6, columns: 12, min_rows: 3, min_columns: 6 };
+    return { columns: 12, min_rows: 3, min_columns: 6 };
   }
 
   static getConfigElement() {
@@ -873,7 +891,7 @@ class HADataExporter extends HTMLElement {
 
 /* Donation footer — diamond top */
 .donate-section {  margin: 24px 0 4px; padding: 20px 24px; position: relative; overflow: hidden;  background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(236,72,153,0.06));  border: 1px solid rgba(99,102,241,0.18); border-radius: var(--bento-radius-md, 18px);  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px;  font-family: 'Inter', -apple-system, sans-serif;}
-.donate-section::before {  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;  background: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899);}
+.donate-section:not([data-source="own-card"])::before {  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;  background: linear-gradient(90deg, #6366f1, #8b5cf6, #ec4899);}
 .donate-section .donate-text { flex: 1; min-width: 240px; }
 .donate-section h3 {  margin: 0 0 6px; font-size: 16px; font-weight: 700; letter-spacing: -0.02em;  background: linear-gradient(135deg, #6366f1, #ec4899);  -webkit-background-clip: text; background-clip: text; color: transparent;}
 .donate-section p { margin: 0; font-size: 13px; line-height: 1.55; color: var(--bento-text-secondary, #57534e); letter-spacing: -0.005em; }
@@ -1555,8 +1573,8 @@ canvas {
         ${_renderLocalIntro()}
         <div class="card">
           <div class="card-header">
-            <h2>${_esc(this._config.title)}</h2>
-            <div style="display:flex;align-items:center;gap:8px"><span class="stats" id="stats"></span><button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--bento-text-secondary,#64748b);cursor:pointer;display:inline-flex;align-items:center;gap:4px">${this._lang === 'pl' ? '\u2699\uFE0F Ustawienia' : '\u2699\uFE0F Settings'}</button></div>
+            <h2>${_esc(this._config.title || 'Data Exporter')}</h2>
+            <div style="display:flex;align-items:center;gap:8px"><span class="stats" id="stats"></span><button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--bento-text-secondary,#64748b);cursor:pointer;display:inline-flex;align-items:center;gap:4px">${'\u2699\uFE0F ' + this._t.settings}</button></div>
           </div>
           
           <div class="toolbar">
@@ -1572,7 +1590,7 @@ canvas {
               <option value="yaml">YAML</option>
             </select>
             <button class="btn btn-primary btn-sm" id="exportBtn" disabled>Export Selected (0)</button>
-            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button><label class="attrs-toggle-label"><input type="checkbox" id="includeAttrs" ${this._config && this._config.show_attributes === false ? '' : 'checked'} class="attrs-toggle-input" /> ${this._t.attributes}</label>
+            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button><label class="attrs-toggle-label"><input type="checkbox" id="includeAttrs" aria-label="${this._t.attributes}" ${this._config && this._config.show_attributes === false ? '' : 'checked'} class="attrs-toggle-input" /> ${this._t.attributes}</label>
           </div>
           <div class="snapshot-bar" style="display:flex;align-items:center;gap:8px 12px;padding:8px 16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin:8px 0;font-size:12px;flex-wrap:wrap;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;">
@@ -1615,9 +1633,10 @@ canvas {
           <div class="pagination" id="pagination"></div>
         
         </div>
-        ${_LOCAL_DONATE_HTML}
+        ${this._hass?.user?.is_admin && this._config?.show_support !== false && !_localSupportDismissed() ? _LOCAL_DONATE_HTML : ''}
     `
     _bindLocalIntroDismiss(this.shadowRoot);
+    _bindLocalSupportDismiss(this.shadowRoot);
     this._attachEvents();
   }
 
@@ -1908,7 +1927,47 @@ canvas {
     exportBtn.disabled = count === 0;
   }
 
-  _export(mode) {
+  async _loadRegistryMetadata() {
+    const [entities, devices, areas] = await Promise.all([
+      this._hass.callWS({ type: 'config/entity_registry/list' }),
+      this._hass.callWS({ type: 'config/device_registry/list' }),
+      this._hass.callWS({ type: 'config/area_registry/list' })
+    ]);
+    return {
+      entities: new Map(entities.map(entry => [entry.entity_id, entry])),
+      devices: new Map(devices.map(entry => [entry.id, entry])),
+      areas: new Map(areas.map(entry => [entry.area_id, entry]))
+    };
+  }
+
+  _buildExportData(data, metadata) {
+    return data.map(e => {
+      const entity = metadata.entities.get(e.entity_id);
+      const deviceId = entity?.device_id || '';
+      const device = metadata.devices.get(deviceId);
+      const areaId = entity?.area_id || device?.area_id || '';
+      const area = metadata.areas.get(areaId);
+      const row = {
+        entity_id: e.entity_id,
+        friendly_name: e.name,
+        state: e.state,
+        domain: e.domain,
+        last_changed: e.last_changed,
+        device_id: deviceId,
+        device_name: device?.name_by_user || device?.name || '',
+        area_id: areaId,
+        area_name: area?.name || ''
+      };
+      if (this._includeAttrsInExport) {
+        const attrs = { ...e.attributes };
+        delete attrs.friendly_name;
+        row.attributes = attrs;
+      }
+      return row;
+    });
+  }
+
+  async _export(mode) {
     const format = this.shadowRoot.getElementById('formatSelect').value;
     const entities = this._getFilteredEntities();
     let data;
@@ -1928,21 +1987,16 @@ canvas {
       : `The export (${format.toUpperCase()}) will contain ${data.length} entities with states${includeAttrs ? ' and attributes (may contain sensitive data)' : ''}.\n\nDo not share publicly or with third-party services without informed consent.\n\nContinue?`;
     if (!confirm(warn)) return;
 
-    const exportData = data.map(e => {
-      const row = {
-        entity_id: e.entity_id,
-        friendly_name: e.name,
-        state: e.state,
-        domain: e.domain,
-        last_changed: e.last_changed
-      };
-      if (this._includeAttrsInExport) {
-        const attrs = { ...e.attributes };
-        delete attrs.friendly_name;
-        row.attributes = attrs;
-      }
-      return row;
-    });
+    let metadata;
+    try {
+      metadata = await this._loadRegistryMetadata();
+    } catch (error) {
+      console.error('[ha-data-exporter] Registry lookup failed:', error);
+      alert(PL ? 'Nie udało się pobrać rejestrów encji, urządzeń i obszarów. Eksport przerwany.'
+        : 'Could not load entity, device and area registries. Export cancelled.');
+      return;
+    }
+    const exportData = this._buildExportData(data, metadata);
 
     let content, mime, ext;
 
@@ -1971,7 +2025,7 @@ canvas {
 
   _toCSV(data) {
     if (data.length === 0) return '';
-    const baseHeaders = ['entity_id', 'friendly_name', 'state', 'domain', 'last_changed'];
+    const baseHeaders = ['entity_id', 'friendly_name', 'state', 'domain', 'last_changed', 'device_id', 'device_name', 'area_id', 'area_name'];
     const attrKeys = new Set();
     if (this._includeAttrsInExport) {
       data.forEach(row => {
@@ -1983,9 +2037,13 @@ canvas {
     const headers = [...baseHeaders, ...[...attrKeys].sort()];
     const escape = (val) => {
       const str = val === null || val === undefined ? '' : String(val);
-      return str.includes(',') || str.includes('"') || str.includes('\n')
-        ? '"' + str.replace(/"/g, '""') + '"'
-        : str;
+      // Entity states and attributes can contain spreadsheet formulas. Keep
+      // actual numbers numeric while forcing untrusted formula-like text inert.
+      const unsafe = typeof val === 'string' && /^[\s\u0000-\u001f]*[=+\-@]/.test(str);
+      const safe = unsafe ? "'" + str : str;
+      return unsafe || /[,"\r\n\t]/.test(safe)
+        ? '"' + safe.replace(/"/g, '""') + '"'
+        : safe;
     };
     const rows = [headers.map(escape).join(',')];
     data.forEach(row => {
@@ -2001,15 +2059,19 @@ canvas {
   _toYAML(data) {
     let yaml = '';
     data.forEach(item => {
-      yaml += `- entity_id: "${item.entity_id}"\n`;
-      yaml += `  friendly_name: "${item.friendly_name}"\n`;
-      yaml += `  state: "${item.state}"\n`;
-      yaml += `  domain: "${item.domain}"\n`;
-      yaml += `  last_changed: "${item.last_changed}"\n`;
+      yaml += `- entity_id: ${JSON.stringify(item.entity_id)}\n`;
+      yaml += `  friendly_name: ${JSON.stringify(item.friendly_name)}\n`;
+      yaml += `  state: ${JSON.stringify(item.state)}\n`;
+      yaml += `  domain: ${JSON.stringify(item.domain)}\n`;
+      yaml += `  last_changed: ${JSON.stringify(item.last_changed)}\n`;
+      yaml += `  device_id: ${JSON.stringify(item.device_id)}\n`;
+      yaml += `  device_name: ${JSON.stringify(item.device_name)}\n`;
+      yaml += `  area_id: ${JSON.stringify(item.area_id)}\n`;
+      yaml += `  area_name: ${JSON.stringify(item.area_name)}\n`;
       if (item.attributes && Object.keys(item.attributes).length > 0) {
         yaml += `  attributes:\n`;
         Object.entries(item.attributes).forEach(([k, v]) => {
-          yaml += `    ${k}: ${JSON.stringify(v)}\n`;
+          yaml += `    ${JSON.stringify(k)}: ${JSON.stringify(v ?? null)}\n`;
         });
       }
     });
@@ -2133,7 +2195,7 @@ canvas {
 if (!customElements.get('ha-data-exporter')) { customElements.define('ha-data-exporter', HADataExporter); }
 
 console.info(
-  '%c  HA-DATA-EXPORTER  %c v4.1.12 ',
+  '%c  HA-DATA-EXPORTER  %c v4.1.13 ',
   'background: #1976d2; color: #fff; font-weight: bold; padding: 2px 6px; border-radius: 4px 0 0 4px;',
   'background: #e3f2fd; color: #1976d2; font-weight: bold; padding: 2px 6px; border-radius: 0 4px 4px 0;'
 );

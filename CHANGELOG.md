@@ -6,6 +6,8 @@
 
 ## 4.1.13 (2026-09-29)
 
+- Translate first-run guidance and optional support labels in place for ordinary Polish/English locale changes, retaining search focus, export choices and dismissal state.
+
 - Show the default title in the sidebar panel when Home Assistant does not call Lovelace setConfig; retain custom card titles.
 - Add entity, device and area registry metadata to CSV, JSON and YAML exports (issue #1); entity area overrides device area.
 - Cancel export with a visible error when registry data cannot be loaded, instead of producing an incomplete file.

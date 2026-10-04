@@ -512,19 +512,53 @@ const _LOCAL_INTRO = {
   headline: "Browse, filter, and export Home Assistant entity data.",
   steps: ["Filter by domain or search entities live.","Take a snapshot or export selection to CSV / JSON.","Privacy warning before downloading attributes with sensitive data."]
 };
+const _LOCAL_INTRO_PL = {
+  headline: 'Przeglądaj, filtruj i eksportuj dane encji Home Assistant.',
+  steps: ['Filtruj według domeny lub wyszukuj encje na bieżąco.', 'Zrób snapshot lub eksportuj zaznaczone encje do CSV / JSON.', 'Przed pobraniem atrybutów z danymi wrażliwymi pojawia się ostrzeżenie o prywatności.']
+};
 const _LOCAL_SUPPORT_KEY = 'ha-data-exporter-support-dismissed';
 const _LOCAL_DONATE_HTML = '<div class="donate-section" data-source="own-card" style="margin:8px 0 0;padding:4px 0;background:none;border:0;box-shadow:none;min-height:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex-direction:row;justify-content:flex-start;text-align:left"><a href="https://buymeacoffee.com/macsiem" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--secondary-text-color,#64748b);font-weight:400;text-decoration:underline">Optional support for HA Tools</a><button type="button" class="support-dismiss" aria-label="Dismiss support link" style="margin-left:auto;padding:2px 6px;min-height:0;line-height:1;border:0;background:none;color:var(--secondary-text-color,#64748b);cursor:pointer">×</button></div>';
+function _renderLocalSupport(language) {
+  return language === 'pl' ? _LOCAL_DONATE_HTML
+    .replace('Optional support for HA Tools', 'Dobrowolne wsparcie HA Tools')
+    .replace('Dismiss support link', 'Ukryj link wsparcia') : _LOCAL_DONATE_HTML;
+}
+function _refreshLocalGuidance(root, language) {
+  const pl = language === 'pl';
+  const intro = pl ? _LOCAL_INTRO_PL : _LOCAL_INTRO;
+  const banner = root.querySelector('.intro-banner[data-intro="ha-data-exporter"]');
+  if (banner) {
+    const headline = banner.querySelector('.intro-headline');
+    if (headline) headline.textContent = '💡 ' + intro.headline;
+    banner.querySelectorAll('.intro-steps li').forEach((li, index) => {
+      if (intro.steps[index]) li.textContent = intro.steps[index];
+    });
+    const dismiss = banner.querySelector('.intro-dismiss');
+    if (dismiss) {
+      dismiss.title = pl ? 'Ukryj instrukcję' : 'Dismiss';
+      dismiss.setAttribute('aria-label', dismiss.title);
+    }
+  }
+  const support = root.querySelector('.donate-section[data-source="own-card"]');
+  if (support) {
+    const link = support.querySelector('a');
+    if (link) link.textContent = pl ? 'Dobrowolne wsparcie HA Tools' : 'Optional support for HA Tools';
+    support.querySelector('.support-dismiss')?.setAttribute('aria-label', pl ? 'Ukryj link wsparcia' : 'Dismiss support link');
+  }
+}
 function _localSupportDismissed() { try { return localStorage.getItem(_LOCAL_SUPPORT_KEY) === '1'; } catch (_) { return false; } }
 function _bindLocalSupportDismiss(root) { root.querySelector('.support-dismiss')?.addEventListener('click', () => { try { localStorage.setItem(_LOCAL_SUPPORT_KEY, '1'); } catch (_) {} root.querySelector('.donate-section[data-source="own-card"]')?.remove(); }); }
 function _localIntroDismissed() {
   try { return localStorage.getItem(_LOCAL_INTRO_KEY) === '1'; } catch(e) { return false; }
 }
-function _renderLocalIntro() {
+function _renderLocalIntro(language) {
   if (_localIntroDismissed()) return '';
-  const steps = _LOCAL_INTRO.steps.map(step => '<li>' + _esc(step) + '</li>').join('');
+  const intro = language === 'pl' ? _LOCAL_INTRO_PL : _LOCAL_INTRO;
+  const dismiss = language === 'pl' ? 'Ukryj instrukcję' : 'Dismiss';
+  const steps = intro.steps.map(step => '<li>' + _esc(step) + '</li>').join('');
   return '<div class="intro-banner" data-intro="ha-data-exporter">'
-    + '<button class="intro-dismiss" type="button" title="Dismiss" aria-label="Dismiss">✕</button>'
-    + '<div class="intro-headline">💡 ' + _esc(_LOCAL_INTRO.headline) + '</div>'
+    + '<button class="intro-dismiss" type="button" title="' + _esc(dismiss) + '" aria-label="' + _esc(dismiss) + '">✕</button>'
+    + '<div class="intro-headline">💡 ' + _esc(intro.headline) + '</div>'
     + '<ol class="intro-steps">' + steps + '</ol>'
     + '</div>';
 }
@@ -708,6 +742,7 @@ class HADataExporter extends HTMLElement {
 
 
   _refreshLocaleControls() {
+    _refreshLocalGuidance(this.shadowRoot, this._lang);
     // Update translated controls in place: export choices and focused inputs keep their DOM.
     const t = this._t;
     const attributes = this.shadowRoot.getElementById('includeAttrs');
@@ -1570,7 +1605,7 @@ canvas {
         }
 
 </style>
-        ${_renderLocalIntro()}
+        ${_renderLocalIntro(this._lang)}
         <div class="card">
           <div class="card-header">
             <h2>${_esc(this._config.title || 'Data Exporter')}</h2>
@@ -1633,7 +1668,7 @@ canvas {
           <div class="pagination" id="pagination"></div>
         
         </div>
-        ${this._hass?.user?.is_admin && this._config?.show_support !== false && !_localSupportDismissed() ? _LOCAL_DONATE_HTML : ''}
+        ${this._hass?.user?.is_admin && this._config?.show_support !== false && !_localSupportDismissed() ? _renderLocalSupport(this._lang) : ''}
     `
     _bindLocalIntroDismiss(this.shadowRoot);
     _bindLocalSupportDismiss(this.shadowRoot);

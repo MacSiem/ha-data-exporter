@@ -172,3 +172,5 @@ MIT — see [LICENSE](LICENSE).
 Exports are downloaded by your browser and may contain entity names, device/area labels, states and attributes. Review the privacy confirmation and selected fields before downloading. Keep exports private; use synthetic records when reporting a bug.
 
 See [SECURITY.md](SECURITY.md) for safe vulnerability reporting and [NOTICE](NOTICE) for licensing notices.
+
+First-run guidance and optional support labels follow the Home Assistant language (Polish or English, including Polish regional locales). Ordinary language updates preserve the focused search and text selection, selected entities, format, attribute choice and dismissed guidance/support.

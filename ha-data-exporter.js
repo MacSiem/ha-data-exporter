@@ -758,12 +758,27 @@ class HADataExporter extends HTMLElement {
     const interval = this.shadowRoot.getElementById('snapshotInterval');
     const labels = { 30: t.snapshotInterval30s, 60: t.snapshotInterval1min, 300: t.snapshotInterval5min, 900: t.snapshotInterval15min, 3600: t.snapshotInterval1h };
     for (const option of interval?.options || []) option.textContent = labels[option.value] || option.textContent;
+    const search = this.shadowRoot.getElementById('searchFilter');
+    if (search) { search.placeholder = t.searchEntities; search.setAttribute('aria-label', t.searchEntities); }
+    const exportAll = this.shadowRoot.getElementById('exportAllBtn');
+    if (exportAll) exportAll.textContent = t.exportAll;
+    const selectAll = this.shadowRoot.getElementById('selectAll');
+    if (selectAll) { selectAll.title = t.selectAll; selectAll.setAttribute('aria-label', t.selectAll); }
+    const snapshots = this.shadowRoot.getElementById('snapshotEnabled');
+    if (snapshots?.parentElement?.lastChild?.nodeType === Node.TEXT_NODE) snapshots.parentElement.lastChild.textContent = ' ' + t.snapshotsTitle;
+    const headers = { entity_id: t.entityId, name: t.name, state: t.state, domain: t.domain, attrCount: t.attrs };
+    for (const th of this.shadowRoot.querySelectorAll('th[data-sort]')) th.firstChild.textContent = headers[th.dataset.sort] + ' ';
     this._updateSnapshotStatus();
+    this._updateEntities();
   }
 
   get _t() {
     const T = {
       pl: {
+        allDomains: 'Wszystkie domeny', searchEntities: 'Szukaj encji...', exportSelected: 'Eksportuj wybrane', exportAll: 'Eksportuj wszystko',
+        entityId: 'ID encji', name: 'Nazwa', state: 'Stan', domain: 'Domena', attrs: 'Atrybuty', entities: 'encji',
+        selectAll: 'Zaznacz wszystkie', showAttributes: 'Pokaż atrybuty', noAttributes: 'Brak atrybutów', noEntities: 'Nie znaleziono encji',
+        previous: 'Poprzednia', next: 'Następna', page: 'Strona', of: 'z', show: 'Pokaż:',
         title: 'Eksporter Danych',
         loading: 'Wczytywanie...',
         noData: 'Brak danych',
@@ -792,6 +807,10 @@ class HADataExporter extends HTMLElement {
         locale: (this._lang === 'pl' ? 'pl-PL' : 'en-US'),
       },
       en: {
+        allDomains: 'All domains', searchEntities: 'Search entities...', exportSelected: 'Export Selected', exportAll: 'Export All',
+        entityId: 'Entity ID', name: 'Name', state: 'State', domain: 'Domain', attrs: 'Attrs', entities: 'entities',
+        selectAll: 'Select all', showAttributes: 'Show attributes', noAttributes: 'No attributes', noEntities: 'No entities found',
+        previous: 'Prev', next: 'Next', page: 'Page', of: 'of', show: 'Show:',
         title: 'Data Exporter',
         loading: 'Loading...',
         noData: 'No data',
@@ -1622,9 +1641,9 @@ canvas {
           
           <div class="toolbar">
             <select id="domainFilter">
-              <option value="all">All domains</option>
+              <option value="all">${this._t.allDomains}</option>
             </select>
-            <input type="text" id="searchFilter" placeholder="Search entities..." />
+            <input type="text" id="searchFilter" placeholder="${this._t.searchEntities}" aria-label="${this._t.searchEntities}" />
             <span class="toolbar-spacer"></span>
             <span class="entity-count" id="entityCount"></span>
             <select class="format-select" id="formatSelect">
@@ -1632,13 +1651,13 @@ canvas {
               <option value="json">JSON</option>
               <option value="yaml">YAML</option>
             </select>
-            <button class="btn btn-primary btn-sm" id="exportBtn" disabled>Export Selected (0)</button>
-            <button class="btn btn-secondary btn-sm" id="exportAllBtn">Export All</button><label class="attrs-toggle-label"><input type="checkbox" id="includeAttrs" aria-label="${this._t.attributes}" ${this._config && this._config.show_attributes === false ? '' : 'checked'} class="attrs-toggle-input" /> ${this._t.attributes}</label>
+            <button class="btn btn-primary btn-sm" id="exportBtn" disabled>${this._t.exportSelected} (0)</button>
+            <button class="btn btn-secondary btn-sm" id="exportAllBtn">${this._t.exportAll}</button><label class="attrs-toggle-label"><input type="checkbox" id="includeAttrs" aria-label="${this._t.attributes}" ${this._config && this._config.show_attributes === false ? '' : 'checked'} class="attrs-toggle-input" /> ${this._t.attributes}</label>
           </div>
           <div class="snapshot-bar" style="display:flex;align-items:center;gap:8px 12px;padding:8px 16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin:8px 0;font-size:12px;flex-wrap:wrap;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;">
               <input type="checkbox" id="snapshotEnabled" ${this._snapshotSettings.enabled ? 'checked' : ''} />
-              Snapshots
+              ${this._t.snapshotsTitle}
             </label>
             <select id="snapshotInterval" style="padding:4px 8px;border:1px solid var(--bento-border,#e2e8f0);border-radius:4px;font-size:12px;">
               <option value="30" ${this._snapshotSettings.interval === 30 ? 'selected' : ''}>${this._t.snapshotInterval30s}</option>
@@ -1661,13 +1680,13 @@ canvas {
             <table class="entity-table">
               <thead>
                 <tr>
-                  <th class="checkbox-cell"><input type="checkbox" id="selectAll" title="Select all" /></th>
+                  <th class="checkbox-cell"><input type="checkbox" id="selectAll" title="${this._t.selectAll}" aria-label="${this._t.selectAll}" /></th>
                   <th class="expand-cell"></th>
-                  <th data-sort="entity_id">Entity ID <span class="sort-arrow"></span></th>
-                  <th data-sort="name">Name <span class="sort-arrow"></span></th>
-                  <th data-sort="state">State <span class="sort-arrow"></span></th>
-                  <th data-sort="domain">Domain <span class="sort-arrow"></span></th>
-                  <th data-sort="attrCount">Attrs <span class="sort-arrow"></span></th>
+                  <th data-sort="entity_id">${this._t.entityId} <span class="sort-arrow"></span></th>
+                  <th data-sort="name">${this._t.name} <span class="sort-arrow"></span></th>
+                  <th data-sort="state">${this._t.state} <span class="sort-arrow"></span></th>
+                  <th data-sort="domain">${this._t.domain} <span class="sort-arrow"></span></th>
+                  <th data-sort="attrCount">${this._t.attrs} <span class="sort-arrow"></span></th>
                 </tr>
               </thead>
               <tbody id="entityBody"></tbody>
@@ -1808,7 +1827,7 @@ canvas {
     // Update domain filter
     const domains = this._getDomains();
     const currentDomain = domainFilter.value;
-    domainFilter.innerHTML = '<option value="all">All domains (' + Object.keys(this._hass.states).length + ')</option>';
+    domainFilter.innerHTML = '<option value="all">' + this._t.allDomains + ' (' + Object.keys(this._hass.states).length + ')</option>';
     domains.forEach(d => {
       const count = Object.keys(this._hass.states).filter(id => id.startsWith(d + '.')).length;
       const opt = document.createElement('option');
@@ -1838,7 +1857,7 @@ canvas {
     // Render table
     tbody.innerHTML = '';
     if (pageEntities.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No entities found</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">' + this._t.noEntities + '</td></tr>';
     } else {
       pageEntities.forEach(ent => {
         const tr = document.createElement('tr');
@@ -1848,7 +1867,7 @@ canvas {
         const attrCount = attrKeys.length;
         tr.innerHTML = `
           <td class="checkbox-cell"><input type="checkbox" data-entity="${_esc(ent.entity_id)}" ${checked} /></td>
-          <td class="expand-cell"><button class="expand-btn" data-expand="${_esc(ent.entity_id)}" title="Show attributes" aria-label="Show attributes">▶</button></td>
+          <td class="expand-cell"><button class="expand-btn" data-expand="${_esc(ent.entity_id)}" title="${this._t.showAttributes}" aria-label="${this._t.showAttributes}">▶</button></td>
           <td class="entity-id" title="${_esc(ent.entity_id)}">${_esc(ent.entity_id)}</td>
           <td title="${_esc(ent.name)}">${_esc(ent.name)}</td>
           <td class="state-val" title="${_esc(ent.state)}">${_esc(ent.state)}</td>
@@ -1876,7 +1895,7 @@ canvas {
         // Attributes section
         attrHtml += '<div class="attr-grid">';
         if (attrKeys.length === 0) {
-          attrHtml += '<div class="attr-item"><span class="attr-val" style="color:var(--bento-text-muted)">No attributes</span></div>';
+          attrHtml += '<div class="attr-item"><span class="attr-val" style="color:var(--bento-text-muted)">' + this._t.noAttributes + '</span></div>';
         } else {
           attrKeys.sort().forEach(k => {
             const v = attrs[k];
@@ -1896,7 +1915,7 @@ canvas {
           attrHtml += '<div class="history-section"><div class="history-title">\u{1F4BE} ' + this._t.snapshotsTitle + ' (' + snapHistory.length + ' ' + this._t.snapshots + ')</div><div class="history-list">';
           last10.forEach(h => {
             const t = new Date(h.ts).toLocaleString();
-            attrHtml += '<div class="history-item"><span class="history-time">' + t + '</span><span class="history-state">' + _esc(h.state) + '</span><span style="font-size:11px;color:var(--bento-text-secondary,#64748b);">' + h.attrs + ' attrs</span></div>';
+            attrHtml += '<div class="history-item"><span class="history-time">' + t + '</span><span class="history-state">' + _esc(h.state) + '</span><span style="font-size:11px;color:var(--bento-text-secondary,#64748b);">' + _esc(h.attrs) + ' ' + this._t.attrs + '</span></div>';
           });
           attrHtml += '</div></div>';
         }
@@ -1934,11 +1953,11 @@ canvas {
 
     // Pagination controls
     pagination.innerHTML = `
-      <button id="prevPage" ${this._currentPage === 0 ? 'disabled' : ''}>\u25C0 Prev</button>
-      <span>Page ${this._currentPage + 1} of ${totalPages} (${entities.length})</span>
-      <button id="nextPage" ${this._currentPage >= totalPages - 1 ? 'disabled' : ''}>Next \u25B6</button>
+      <button id="prevPage" ${this._currentPage === 0 ? 'disabled' : ''}>\u25C0 ${this._t.previous}</button>
+      <span>${this._t.page} ${this._currentPage + 1} ${this._t.of} ${Math.max(1, totalPages)} (${entities.length})</span>
+      <button id="nextPage" ${this._currentPage >= totalPages - 1 ? 'disabled' : ''}>${this._t.next} \u25B6</button>
       <div class="page-size-wrap">
-        <label>Show:</label>
+        <label>${this._t.show}</label>
         <select id="pageSizeSelect">
           ${[15, 25, 50, 100].map(s => `<option value="${s}" ${s === pageSize ? 'selected' : ''}>${s}</option>`).join('')}
         </select>
@@ -1959,14 +1978,14 @@ canvas {
     });
 
     this._updateStats();
-    stats.textContent = `${entities.length} entities`;
+    stats.textContent = `${entities.length} ${this._t.entities}`;
   }
 
   _updateStats() {
     const exportBtn = this.shadowRoot.getElementById('exportBtn');
     if (!exportBtn) return;
     const count = this._selectedEntities.size;
-    exportBtn.textContent = `Export Selected (${count})`;
+    exportBtn.textContent = `${this._t.exportSelected} (${count})`;
     exportBtn.disabled = count === 0;
   }
 

@@ -821,7 +821,7 @@ class HADataExporter extends HTMLElement {
         snapshotInterval1h: 'co 1h',
         stateHistory: 'Historia stan\u00f3w (24h z HA)',
         snapshotsTitle: 'Snapshoty',
-        snapshots: 'zapisy\u00f3w',
+        snapshots: 'zapis\u00f3w',
         clickToLoad: 'Kliknij aby za\u0142adowa\u0107...',
         loadingHistory: '\u0141adowanie historii...',
         loadHistoryError: 'Nie uda\u0142o si\u0119 pobra\u0107 historii:',

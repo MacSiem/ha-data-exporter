@@ -51,3 +51,23 @@ test('snapshot attribute counts render as literal text even after a modified loc
   assert.match(card.shadowRoot.querySelector('.attr-row').textContent,/<img src=x/);
  } finally {dom.window.close();}
 });
+
+
+test('automatic snapshots update the visible saved count when the timer fires',()=>{
+ const dom=new JSDOM('',{runScripts:'dangerously',url:'http://localhost/'});
+ try {
+  let tick;
+  dom.window.setInterval=callback=>{tick=callback;return 1;};
+  dom.window.clearInterval=()=>{};
+  dom.window.eval(source);
+  const card=dom.window.document.createElement('ha-data-exporter');
+  card.setConfig({storage_key:'timer-fixture',show_support:false});
+  dom.window.document.body.append(card);
+  card.hass={language:'en',themes:{},states:{'sensor.qa':{state:'17',attributes:{}}}};
+  card.shadowRoot.getElementById('snapshotEnabled').click();
+  assert.equal(card.shadowRoot.getElementById('snapshotStatus').textContent,'1 saved');
+  assert.equal(typeof tick,'function');
+  tick();
+  assert.equal(card.shadowRoot.getElementById('snapshotStatus').textContent,'2 saved');
+ } finally {dom.window.close();}
+});

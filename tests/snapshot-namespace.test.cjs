@@ -39,3 +39,15 @@ test('changing the namespace starts empty when absent and never copies old snaps
   assert.deepEqual(living.map(s=>s.entities['sensor.qa'].state),['18']);
  } finally {dom.window.close();}
 });
+
+
+test('snapshot attribute counts render as literal text even after a modified local snapshot',()=>{
+ const dom=new JSDOM('',{runScripts:'dangerously',url:'http://localhost/'});
+ try {
+  dom.window.localStorage.setItem('ha-data-exporter-snapshots-default',JSON.stringify([{ts:'2026-10-08T00:00:00Z',entities:{'sensor.qa':{state:'17',attrs:'<img src=x onerror="alert(1)">'}}}]));
+  dom.window.eval(source);const card=dom.window.document.createElement('ha-data-exporter');card.setConfig({show_support:false});dom.window.document.body.append(card);
+  card.hass={language:'en',themes:{},states:{'sensor.qa':{state:'17',attributes:{}}}};
+  assert.equal(card.shadowRoot.querySelectorAll('img').length,0);
+  assert.match(card.shadowRoot.querySelector('.attr-row').textContent,/<img src=x/);
+ } finally {dom.window.close();}
+});

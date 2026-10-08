@@ -80,3 +80,26 @@ test('language updates set the checkbox accessible label explicitly to avoid a c
     assert.equal(f.reads.length,0);
   } finally {f.dom.window.close();}
 });
+
+
+test('the populated table and export toolbar follow Polish and English without dropping selection or focused search',()=>{
+ const f=fixture(),c=f.card();
+ try {
+  const root=c.shadowRoot,search=root.querySelector('#searchFilter');
+  search.value='sensor.qa';search.dispatchEvent(new f.dom.window.Event('input'));search.focus();
+  const cb=root.querySelector('[data-entity="sensor.qa"]');cb.checked=true;cb.dispatchEvent(new f.dom.window.Event('change'));
+  c.hass={...f.hass,language:'pl'};
+  assert.equal(root.querySelector('#exportAllBtn').textContent,'Eksportuj wszystko');
+  assert.equal(root.querySelector('#exportBtn').textContent,'Eksportuj wybrane (1)');
+  assert.equal(search.placeholder,'Szukaj encji...');
+  assert.equal(root.querySelector('th[data-sort="name"]').textContent.trim(),'Nazwa');
+  assert.match(root.querySelector('#domainFilter option[value="all"]').textContent,/Wszystkie domeny/);
+  assert.match(root.querySelector('#stats').textContent,/1 encji/);
+  assert.equal(root.activeElement,search);assert.equal(search.value,'sensor.qa');
+  c.hass={...f.hass,language:'en'};
+  assert.equal(root.querySelector('#exportAllBtn').textContent,'Export All');
+  assert.equal(root.querySelector('#exportBtn').textContent,'Export Selected (1)');
+  assert.equal(root.querySelector('th[data-sort="name"]').textContent.trim(),'Name');
+  assert.equal(root.activeElement,search);assert.equal(f.reads.length,0);
+ } finally {f.dom.window.close();}
+});

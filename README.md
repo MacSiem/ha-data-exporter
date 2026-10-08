@@ -100,6 +100,10 @@ After restart, **Data Exporter** appears in the HA sidebar.
 > `default_format`, `domains`, `show_attributes`, `show_select_all`,
 > `page_size` or `storage_key` via YAML as shown above.
 
+The **Settings** button opens the suite settings when embedded in HA Tools Panel.
+In a standalone card it shows configuration guidance; administrators edit the card
+in the dashboard, while other users can change the export and snapshot controls.
+
 ## Features
 
 - Browse every entity in your instance with a live domain filter and text search.
@@ -108,6 +112,8 @@ After restart, **Data Exporter** appears in the HA sidebar.
   Home Assistant's own history API.
 - Export selected entities, or everything currently filtered, to **CSV, JSON
   or YAML** — with device and area columns and attributes optionally included.
+  Selected entities remain selected when search or domain filters hide them; exports
+  still respect the card’s configured `domains` and omit entities that no longer exist.
 - CSV protects spreadsheet cells containing formula-like text; numeric values
   stay numeric.
 - Privacy confirmation dialog before every export.

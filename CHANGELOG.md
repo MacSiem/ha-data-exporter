@@ -1,5 +1,7 @@
 ## 4.1.13 (2026-10-08)
 
+- Export selected entities across search/domain filters while respecting configured domains and current availability.
+- Show configuration guidance when Settings is used in a standalone card.
 - Include device and area IDs/names from Home Assistant registries in CSV, JSON and YAML exports; entity area takes precedence over device area (issue #1).
 - Cancel exports when registry reads fail or the signed-in account changes during the read.
 - Keep spreadsheet formula-like text inert while preserving numeric attribute values; quote YAML keys and values.

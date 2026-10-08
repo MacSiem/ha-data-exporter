@@ -778,6 +778,7 @@ class HADataExporter extends HTMLElement {
     }
     const settings = this.shadowRoot.getElementById('deGoSettingsBtn');
     if (settings) settings.textContent = '\u2699\uFE0F ' + t.settings;
+    this._refreshSettingsInfo();
     const interval = this.shadowRoot.getElementById('snapshotInterval');
     const labels = { 30: t.snapshotInterval30s, 60: t.snapshotInterval1min, 300: t.snapshotInterval5min, 900: t.snapshotInterval15min, 3600: t.snapshotInterval1h };
     for (const option of interval?.options || []) option.textContent = labels[option.value] || option.textContent;
@@ -793,6 +794,17 @@ class HADataExporter extends HTMLElement {
     for (const th of this.shadowRoot.querySelectorAll('th[data-sort]')) th.firstChild.textContent = headers[th.dataset.sort] + ' ';
     this._updateSnapshotStatus();
     this._updateEntities();
+  }
+
+  _refreshSettingsInfo() {
+    const info = this.shadowRoot.getElementById('settingsInfo');
+    if (!info) return;
+    const PL = this._lang === 'pl';
+    info.textContent = this._hass?.user?.is_admin
+      ? (PL ? 'Edytuj panel → edytuj kartę. Edytor wizualny pozwala zmienić tytuł; pozostałe opcje ustaw w YAML karty. Format eksportu, atrybuty i snapshoty zmienisz poniżej.'
+        : 'Edit dashboard → edit card. The visual editor changes the title; set other options in the card YAML. Change the export format, attributes and snapshots below.')
+      : (PL ? 'Poproś administratora o zmianę konfiguracji karty. Format eksportu, atrybuty i snapshoty zmienisz poniżej.'
+        : 'Ask an administrator to change the card configuration. Change the export format, attributes and snapshots below.');
   }
 
   get _t() {
@@ -912,7 +924,7 @@ class HADataExporter extends HTMLElement {
     };
   }
 
-  _getFilteredEntities() {
+  _getFilteredEntities(includeUIFilters = true) {
     if (!this._hass) return [];
     let entities = Object.keys(this._hass.states).map(id => {
       const state = this._hass.states[id];
@@ -930,11 +942,11 @@ class HADataExporter extends HTMLElement {
       entities = entities.filter(e => this._config.domains.includes(e.domain));
     }
 
-    if (this._filterDomain !== 'all') {
+    if (includeUIFilters && this._filterDomain !== 'all') {
       entities = entities.filter(e => e.domain === this._filterDomain);
     }
 
-    if (this._filterSearch) {
+    if (includeUIFilters && this._filterSearch) {
       const search = this._filterSearch.toLowerCase();
       entities = entities.filter(e =>
         e.entity_id.toLowerCase().includes(search) ||
@@ -958,6 +970,10 @@ class HADataExporter extends HTMLElement {
     });
 
     return entities;
+  }
+
+  _getSelectedEntities() {
+    return this._getFilteredEntities(false).filter(e => this._selectedEntities.has(e.entity_id));
   }
 
   _getDomains() {
@@ -1660,9 +1676,10 @@ canvas {
         <div class="card">
           <div class="card-header">
             <h2>${_esc(this._config.title || 'Data Exporter')}</h2>
-            <div style="display:flex;align-items:center;gap:8px"><span class="stats" id="stats"></span><button id="deGoSettingsBtn" style="background:none;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--bento-text-secondary,#64748b);cursor:pointer;display:inline-flex;align-items:center;gap:4px">${'\u2699\uFE0F ' + this._t.settings}</button></div>
+            <div style="display:flex;align-items:center;gap:8px"><span class="stats" id="stats"></span><button id="deGoSettingsBtn" aria-expanded="false" aria-controls="settingsInfo" style="background:none;border:1px solid var(--bento-border,#e2e8f0);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--bento-text-secondary,#64748b);cursor:pointer;display:inline-flex;align-items:center;gap:4px">${'\u2699\uFE0F ' + this._t.settings}</button></div>
           </div>
           
+          <div id="settingsInfo" role="note" hidden style="padding:10px 0;font-size:12px;line-height:1.6;color:var(--bento-text-secondary,#64748b)"></div>
           <div class="toolbar">
             <select id="domainFilter">
               <option value="all">${this._t.allDomains}</option>
@@ -1744,7 +1761,13 @@ canvas {
       if (panel && panel._navigateToSettings) {
         panel._navigateToSettings('data-exporter');
       } else {
-        this.dispatchEvent(new CustomEvent('navigate-settings', { bubbles: true, composed: true, detail: { section: 'data-exporter' } }));
+        const unhandled = this.dispatchEvent(new CustomEvent('navigate-settings', { bubbles: true, composed: true, cancelable: true, detail: { section: 'data-exporter' } }));
+        if (unhandled) {
+          const info = this.shadowRoot.getElementById('settingsInfo');
+          info.hidden = !info.hidden;
+          this._refreshSettingsInfo();
+          this.shadowRoot.getElementById('deGoSettingsBtn').setAttribute('aria-expanded', String(!info.hidden));
+        }
       }
     });
 
@@ -2008,7 +2031,7 @@ canvas {
   _updateStats() {
     const exportBtn = this.shadowRoot.getElementById('exportBtn');
     if (!exportBtn) return;
-    const count = this._selectedEntities.size;
+    const count = this._getSelectedEntities().length;
     exportBtn.textContent = `${this._t.exportSelected} (${count})`;
     exportBtn.disabled = count === 0;
   }
@@ -2060,7 +2083,7 @@ canvas {
     let data;
 
     if (mode === 'selected') {
-      data = entities.filter(e => this._selectedEntities.has(e.entity_id));
+      data = this._getSelectedEntities();
     } else {
       data = entities;
     }

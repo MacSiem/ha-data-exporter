@@ -1,18 +1,14 @@
-## Unreleased — ordinary language updates
+## 4.1.13 (2026-10-08)
 
-- Refresh existing snapshot controls, settings navigation and the attributes label immediately when Home Assistant language changes.
-- Keep the attributes checkbox accessible name in the current language, including when the browser caches a previous inferred label.
-- Update translated controls in place to retain selected entities, export format, attribute choice, snapshot interval and focused search selection.
-
-## 4.1.13 (2026-09-29)
-
-- Translate first-run guidance and optional support labels in place for ordinary Polish/English locale changes, retaining search focus, export choices and dismissal state.
-
-- Show the default title in the sidebar panel when Home Assistant does not call Lovelace setConfig; retain custom card titles.
-- Add entity, device and area registry metadata to CSV, JSON and YAML exports (issue #1); entity area overrides device area.
-- Cancel export with a visible error when registry data cannot be loaded, instead of producing an incomplete file.
-- Neutralize formula-like CSV text from states, names and attributes before spreadsheet import.
-- Quote YAML values and attribute keys so names with quotes or newlines cannot alter the exported document.
+- Include device and area IDs/names from Home Assistant registries in CSV, JSON and YAML exports; entity area takes precedence over device area (issue #1).
+- Cancel exports when registry reads fail or the signed-in account changes during the read.
+- Keep spreadsheet formula-like text inert while preserving numeric attribute values; quote YAML keys and values.
+- Restore snapshots and settings from the configured `storage_key`; changing namespaces cannot copy the previous card's history into the new key.
+- Escape stored snapshot attribute counts before rendering.
+- Translate the entity table, filters, export toolbar, pagination, first-run guidance and support controls for Polish and English. Language changes retain focused search and export choices.
+- Apply the configured default export format, attribute choice and bulk-selection visibility.
+- Update optional support immediately when the administrator role changes and discard history responses from the previous account.
+- Show the default title in sidebar mode while retaining custom card titles.
 
 ## 4.1.12 (2026-08-28)
 

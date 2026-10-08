@@ -134,7 +134,11 @@ services without informed consent.
 
 **Where are snapshots stored?**
 In your browser's `localStorage`, per browser and per device. Clearing browser
-data removes them. Use CSV/JSON/YAML export for a permanent copy.
+data removes them. Snapshot history stays local; CSV/JSON/YAML exports contain
+the current filtered entity data, rather than the saved snapshot history.
+The same Home Assistant origin and browser profile share this storage across
+accounts. Clear snapshots before handing that profile to another person;
+`storage_key` separates cards, not user accounts.
 
 **Can I keep separate snapshot histories per card instance?**
 Yes — set `storage_key: <name>` in the card YAML. Snapshots *and* snapshot
@@ -173,4 +177,4 @@ Exports are downloaded by your browser and may contain entity names, device/area
 
 See [SECURITY.md](SECURITY.md) for safe vulnerability reporting and [NOTICE](NOTICE) for licensing notices.
 
-First-run guidance and optional support labels follow the Home Assistant language (Polish or English, including Polish regional locales). Ordinary language updates preserve the focused search and text selection, selected entities, format, attribute choice and dismissed guidance/support.
+The entity table, filters, export toolbar, pagination, first-run guidance and optional support labels follow the Home Assistant language (Polish or English, including Polish regional locales). Ordinary language updates preserve the focused search and text selection, selected entities, format, attribute choice and dismissed guidance/support.

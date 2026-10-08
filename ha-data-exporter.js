@@ -860,6 +860,7 @@ class HADataExporter extends HTMLElement {
       this._loadSnapshotSettings();
       this._loadSnapshots();
     }
+    this._includeAttrsInExport = this._config.show_attributes !== false;
     // page_size is documented in the README but was never applied — the card
     // kept its hardcoded default. Honour it (the in-card selector still wins
     // afterwards, since it writes _pageSize directly).
@@ -1647,9 +1648,9 @@ canvas {
             <span class="toolbar-spacer"></span>
             <span class="entity-count" id="entityCount"></span>
             <select class="format-select" id="formatSelect">
-              <option value="csv">CSV</option>
-              <option value="json">JSON</option>
-              <option value="yaml">YAML</option>
+              <option value="csv" ${this._config.default_format === 'csv' ? 'selected' : ''}>CSV</option>
+              <option value="json" ${this._config.default_format === 'json' ? 'selected' : ''}>JSON</option>
+              <option value="yaml" ${this._config.default_format === 'yaml' ? 'selected' : ''}>YAML</option>
             </select>
             <button class="btn btn-primary btn-sm" id="exportBtn" disabled>${this._t.exportSelected} (0)</button>
             <button class="btn btn-secondary btn-sm" id="exportAllBtn">${this._t.exportAll}</button><label class="attrs-toggle-label"><input type="checkbox" id="includeAttrs" aria-label="${this._t.attributes}" ${this._config && this._config.show_attributes === false ? '' : 'checked'} class="attrs-toggle-input" /> ${this._t.attributes}</label>
@@ -1680,7 +1681,7 @@ canvas {
             <table class="entity-table">
               <thead>
                 <tr>
-                  <th class="checkbox-cell"><input type="checkbox" id="selectAll" title="${this._t.selectAll}" aria-label="${this._t.selectAll}" /></th>
+                  <th class="checkbox-cell"><input type="checkbox" id="selectAll" ${this._config.show_select_all === false ? 'hidden' : ''} title="${this._t.selectAll}" aria-label="${this._t.selectAll}" /></th>
                   <th class="expand-cell"></th>
                   <th data-sort="entity_id">${this._t.entityId} <span class="sort-arrow"></span></th>
                   <th data-sort="name">${this._t.name} <span class="sort-arrow"></span></th>

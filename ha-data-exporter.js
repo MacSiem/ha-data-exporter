@@ -824,6 +824,7 @@ class HADataExporter extends HTMLElement {
   }
 
   setConfig(config) {
+    const previousSnapshotKey = this._snapshotKey();
     this._config = {
       title: config.title || 'Data Exporter',
       default_format: config.default_format || 'csv',
@@ -833,6 +834,13 @@ class HADataExporter extends HTMLElement {
       domains: config.domains || null,
       ...config
     };
+    if (this._snapshotKey() !== previousSnapshotKey) {
+      this._stopAutoSnapshot();
+      this._snapshots = [];
+      this._snapshotSettings = { enabled: false, interval: 60, maxSnapshots: 50 };
+      this._loadSnapshotSettings();
+      this._loadSnapshots();
+    }
     // page_size is documented in the README but was never applied — the card
     // kept its hardcoded default. Honour it (the in-card selector still wins
     // afterwards, since it writes _pageSize directly).

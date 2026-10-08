@@ -150,6 +150,10 @@ namespace.
 **Which export formats are supported?**
 CSV, JSON and YAML, selectable per export. You can toggle whether attributes
 are included, independent of the format.
+CSV keeps its nine base columns first and sorts attribute columns by their
+original names. If a name is already used, its CSV header gains an
+`attributes.` prefix until it is unique; its attribute value is preserved.
+JSON and YAML retain the original names inside the `attributes` object.
 
 **Can I limit the browser to specific domains?**
 Yes — set `domains: [sensor, light, ...]` in the card YAML (see Quick start).

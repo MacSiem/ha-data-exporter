@@ -658,6 +658,7 @@ class HADataExporter extends HTMLElement {
     });
     this._snapshots.push(snap);
     this._saveSnapshots();
+    this._updateSnapshotStatus();
   }
 
   _startAutoSnapshot() {
@@ -2121,7 +2122,14 @@ canvas {
         }
       });
     }
-    const headers = [...baseHeaders, ...[...attrKeys].sort()];
+    const usedHeaders = new Set(baseHeaders);
+    const attributeColumns = [...attrKeys].sort().map(key => {
+      let header = key;
+      while (usedHeaders.has(header)) header = 'attributes.' + header;
+      usedHeaders.add(header);
+      return { key, header };
+    });
+    const headers = [...baseHeaders, ...attributeColumns.map(column => column.header)];
     const escape = (val) => {
       const str = val === null || val === undefined ? '' : String(val);
       // Entity states and attributes can contain spreadsheet formulas. Keep
@@ -2134,10 +2142,10 @@ canvas {
     };
     const rows = [headers.map(escape).join(',')];
     data.forEach(row => {
-      const values = headers.map(h => {
-        if (baseHeaders.includes(h)) return escape(row[h]);
-        return escape(row.attributes ? row.attributes[h] : '');
-      });
+      const values = [
+        ...baseHeaders.map(header => escape(row[header])),
+        ...attributeColumns.map(column => escape(row.attributes ? row.attributes[column.key] : ''))
+      ];
       rows.push(values.join(','));
     });
     return rows.join('\n');

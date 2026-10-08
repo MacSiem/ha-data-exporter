@@ -3,8 +3,10 @@
 - Include device and area IDs/names from Home Assistant registries in CSV, JSON and YAML exports; entity area takes precedence over device area (issue #1).
 - Cancel exports when registry reads fail or the signed-in account changes during the read.
 - Keep spreadsheet formula-like text inert while preserving numeric attribute values; quote YAML keys and values.
+- Preserve CSV attribute values whose names collide with base columns or other attribute headers, using unique headers.
 - Restore snapshots and settings from the configured `storage_key`; changing namespaces cannot copy the previous card's history into the new key.
 - Escape stored snapshot attribute counts before rendering.
+- Update the visible saved-snapshot count when automatic snapshots are taken.
 - Translate the entity table, filters, export toolbar, pagination, first-run guidance and support controls for Polish and English. Language changes retain focused search and export choices.
 - Apply the configured default export format, attribute choice and bulk-selection visibility.
 - Update optional support immediately when the administrator role changes and discard history responses from the previous account.

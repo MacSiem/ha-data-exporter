@@ -84,3 +84,28 @@ test('YAML export quotes entity names and states without changing document struc
     dom.window.close();
   }
 });
+
+
+test('CSV keeps attributes whose names collide with metadata or other attribute headers', () => {
+  const { card, dom } = exporter();
+  try {
+    const row = {
+      entity_id: 'sensor.collision', friendly_name: 'Collision fixture', state: 'current-state',
+      domain: 'sensor', last_changed: 'now', device_id: 'registry-device',
+      device_name: 'Registry device', area_id: 'registry-area', area_name: 'Registry area',
+      attributes: { state: 'attribute-state', device_id: 'attribute-device',
+        'attributes.state': 'literal-prefixed-attribute', note: 'ordinary-attribute' },
+    };
+    const [header, values] = card._toCSV([row]).split('\n').map(line => line.split(','));
+    assert.equal(header.length, new Set(header).size, 'each CSV column must be unambiguous');
+    const cells = Object.fromEntries(header.map((name, i) => [name, values[i]]));
+    assert.equal(cells.state, 'current-state');
+    assert.equal(cells.device_id, 'registry-device');
+    assert.equal(cells.note, 'ordinary-attribute');
+    for (const value of Object.values(row.attributes)) {
+      assert.equal(values.filter(cell => cell === value).length, 1, 'every attribute value survives exactly once');
+    }
+  } finally {
+    dom.window.close();
+  }
+});

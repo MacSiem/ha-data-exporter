@@ -588,6 +588,7 @@ class HADataExporter extends HTMLElement {
     this._tabPages = {};
     this._pageSize = 15;
     this._hass = null;
+    this._identityEpoch = 0;
     this._config = {};
     this._selectedEntities = new Set();
     this._filterDomain = 'all';
@@ -711,9 +712,22 @@ class HADataExporter extends HTMLElement {
     } catch (e) {}
 
     const previousLanguage = this._lang;
+    const identity = h => JSON.stringify([h?.user?.id || null, !!h?.user?.is_admin, !!h?.user?.is_owner]);
+    const identityChanged = identity(this._hass) !== identity(hass);
+    if (identityChanged) {
+      this._identityEpoch++;
+      this._historyCache = {};
+      this._selectedEntities.clear();
+      this._expandedEntities.clear();
+    }
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';
     this._hass = hass;
-    if (!hass) return;
+    if (!hass) {
+      this._stopAutoSnapshot();
+      this.shadowRoot.replaceChildren();
+      this._firstHassRender = false;
+      return;
+    }
     const now = Date.now();
     if (!this._firstHassRender) {
       this._firstHassRender = true;
@@ -722,7 +736,15 @@ class HADataExporter extends HTMLElement {
       this._lastRenderTime = now;
       return;
     }
+    const support = this.shadowRoot.querySelector('.donate-section[data-source="own-card"]');
+    const showSupport = hass.user?.is_admin && this._config.show_support !== false && !_localSupportDismissed();
+    if (!showSupport) support?.remove();
+    else if (!support) {
+      this.shadowRoot.querySelector('.card')?.insertAdjacentHTML('afterend', _renderLocalSupport(this._lang));
+      _bindLocalSupportDismiss(this.shadowRoot);
+    }
     if (previousLanguage !== this._lang) this._refreshLocaleControls();
+    else if (identityChanged) this._updateEntities();
     if (now - (this._lastRenderTime || 0) < 10000) {
       if (!this._renderScheduled) {
         this._renderScheduled = true;
@@ -2031,6 +2053,7 @@ canvas {
   }
 
   async _export(mode) {
+    const identityEpoch = this._identityEpoch;
     const format = this.shadowRoot.getElementById('formatSelect').value;
     const entities = this._getFilteredEntities();
     let data;
@@ -2059,6 +2082,7 @@ canvas {
         : 'Could not load entity, device and area registries. Export cancelled.');
       return;
     }
+    if (identityEpoch !== this._identityEpoch || !this._hass) return;
     const exportData = this._buildExportData(data, metadata);
 
     let content, mime, ext;
@@ -2166,6 +2190,7 @@ canvas {
   }
 
   async _fetchHistory(entityId) {
+    const identityEpoch = this._identityEpoch;
     if (!this._historyCache) this._historyCache = {};
     const containerId = 'history-' + entityId.replace(/\./g, '_');
     const container = this.shadowRoot.getElementById(containerId);
@@ -2191,8 +2216,10 @@ canvas {
       if (!token) try { token = this._hass.auth.accessToken; } catch(e) { console.debug('[ha-data-exporter] caught:', e); }
       const headers = token ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
       const resp = await fetch(url, { headers });
+      if (identityEpoch !== this._identityEpoch || !this._hass) return;
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
+      if (identityEpoch !== this._identityEpoch || !this._hass) return;
       const states = data && data[0] ? data[0] : [];
       // Take last 5 unique state changes
       const changes = [];
@@ -2208,6 +2235,7 @@ canvas {
       this._historyCache[entityId] = { data: changes, ts: Date.now() };
       this._renderHistory(container, changes, entityId);
     } catch (err) {
+      if (identityEpoch !== this._identityEpoch || !this._hass) return;
       container.innerHTML = '<span class="history-loading">' + this._t.loadHistoryError + ' ' + _esc(err.message) + '</span>';
     }
   }

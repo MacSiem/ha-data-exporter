@@ -966,6 +966,9 @@ class HADataExporter extends HTMLElement {
     this._exportMode = 'all';
     this._exportConnection = null;
     this._exportConnectionListener = null;
+    this._exportTransportOffline = false;
+    this._exportBrowserOffline = navigator.onLine === false;
+    this._exportBrowserListeners = null;
     this._config = {};
     this._selectedEntities = new Set();
     this._filterDomain = 'all';
@@ -1089,6 +1092,7 @@ class HADataExporter extends HTMLElement {
   }
 
   connectedCallback() {
+    this._bindExportBrowserLifecycle();
     this._bindExportConnection(this._hass?.connection);
     this._syncExportContext();
   }
@@ -1096,6 +1100,7 @@ class HADataExporter extends HTMLElement {
   disconnectedCallback() {
     this._destroyExportDialog();
     this._unbindExportConnection();
+    this._unbindExportBrowserLifecycle();
     this._syncExportContext();
     if (this._renderTimer) clearTimeout(this._renderTimer);
     this._renderTimer = null;
@@ -2550,7 +2555,8 @@ canvas {
 
   _exportConnected() {
     return !!this._hass && !!this._hass.connection && this._hass.connection.connected !== false
-      && this._hass.connected !== false && this._hass.offline !== true && this.isConnected;
+      && this._hass.connected !== false && this._hass.offline !== true && this.isConnected
+      && !this._exportTransportOffline && !this._exportBrowserOffline && navigator.onLine !== false;
   }
 
   _syncExportContext() {
@@ -2589,21 +2595,40 @@ canvas {
   _bindExportConnection(connection) {
     if (this._exportConnection === connection && this._exportConnectionListener) return;
     this._unbindExportConnection();
+    this._exportTransportOffline = connection?.connected === false;
     if (!connection?.addEventListener || !connection?.removeEventListener) return;
     this._exportConnection = connection;
-    this._exportConnectionListener = () => {
-      // Real HA Connection changes its connected flag before emitting these events.
+    const update = offline => {
+      // Fence the event immediately, even before a cached flag changes.
+      this._exportTransportOffline = offline;
       this._syncExportContext();
       if (!this._exportConnected()) this._exportDialog?.cancel();
     };
-    for (const type of ['ready', 'disconnected']) connection.addEventListener(type, this._exportConnectionListener);
+    this._exportConnectionListener = { ready: () => update(false), disconnected: () => update(true) };
+    for (const [type, listener] of Object.entries(this._exportConnectionListener)) connection.addEventListener(type, listener);
   }
 
   _unbindExportConnection() {
-    if (this._exportConnectionListener) for (const type of ['ready', 'disconnected'])
-      this._exportConnection?.removeEventListener(type, this._exportConnectionListener);
+    if (this._exportConnectionListener) for (const [type, listener] of Object.entries(this._exportConnectionListener))
+      this._exportConnection?.removeEventListener(type, listener);
     this._exportConnection = null;
     this._exportConnectionListener = null;
+  }
+
+  _bindExportBrowserLifecycle() {
+    if (this._exportBrowserListeners) return;
+    this._exportBrowserOffline = navigator.onLine === false;
+    const update = offline => {
+      this._exportBrowserOffline = offline; this._syncExportContext();
+      if (!this._exportConnected()) this._exportDialog?.cancel();
+    };
+    this._exportBrowserListeners = { offline: () => update(true), online: () => update(false) };
+    for (const [type, listener] of Object.entries(this._exportBrowserListeners)) window.addEventListener(type, listener);
+  }
+
+  _unbindExportBrowserLifecycle() {
+    if (this._exportBrowserListeners) for (const [type, listener] of Object.entries(this._exportBrowserListeners)) window.removeEventListener(type, listener);
+    this._exportBrowserListeners = null;
   }
 
   _destroyExportDialog() {
@@ -2679,6 +2704,10 @@ canvas {
     }
     for (const key of DATA_BOOLEAN_ATTRIBUTES) if (typeof attributes[key] === 'boolean') result[key] = attributes[key];
     for (const [key, choices] of Object.entries(DATA_ATTRIBUTE_ENUMS)) if (choices.includes(attributes[key])) result[key] = attributes[key];
+    // Retain international and Custom currency codes used by measured monetary
+    // sensors and tariff rates; this is a bounded unit label, never a raw string.
+    const unit = attributes.unit_of_measurement;
+    if (typeof unit === 'string' && /^[A-Z]{3}(?:\/(?:Wh|kWh|MWh))?$/.test(unit)) result.unit_of_measurement = unit;
     return result;
   }
 

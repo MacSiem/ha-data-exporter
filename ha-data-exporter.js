@@ -791,7 +791,10 @@ class HADataExporter extends HTMLElement {
     const snapshots = this.shadowRoot.getElementById('snapshotEnabled');
     if (snapshots?.parentElement?.lastChild?.nodeType === Node.TEXT_NODE) snapshots.parentElement.lastChild.textContent = ' ' + t.snapshotsTitle;
     const headers = { entity_id: t.entityId, name: t.name, state: t.state, domain: t.domain, attrCount: t.attrs };
-    for (const th of this.shadowRoot.querySelectorAll('th[data-sort]')) th.firstChild.textContent = headers[th.dataset.sort] + ' ';
+    for (const th of this.shadowRoot.querySelectorAll('th[data-sort]')) {
+      const label = th.querySelector('[data-sort-label]');
+      if (label) label.textContent = headers[th.dataset.sort];
+    }
     this._updateSnapshotStatus();
     this._updateEntities();
   }
@@ -812,7 +815,7 @@ class HADataExporter extends HTMLElement {
       pl: {
         allDomains: 'Wszystkie domeny', searchEntities: 'Szukaj encji...', exportSelected: 'Eksportuj wybrane', exportAll: 'Eksportuj wszystko',
         entityId: 'ID encji', name: 'Nazwa', state: 'Stan', domain: 'Domena', attrs: 'Atrybuty', entities: 'encji',
-        selectAll: 'Zaznacz wszystkie', showAttributes: 'Pokaż atrybuty', noAttributes: 'Brak atrybutów', noEntities: 'Nie znaleziono encji',
+        selectAll: 'Zaznacz wszystkie', selectEntity: 'Zaznacz encję', showAttributes: 'Pokaż atrybuty', noAttributes: 'Brak atrybutów', noEntities: 'Nie znaleziono encji',
         previous: 'Poprzednia', next: 'Następna', page: 'Strona', of: 'z', show: 'Pokaż:',
         title: 'Eksporter Danych',
         loading: 'Wczytywanie...',
@@ -844,7 +847,7 @@ class HADataExporter extends HTMLElement {
       en: {
         allDomains: 'All domains', searchEntities: 'Search entities...', exportSelected: 'Export Selected', exportAll: 'Export All',
         entityId: 'Entity ID', name: 'Name', state: 'State', domain: 'Domain', attrs: 'Attrs', entities: 'entities',
-        selectAll: 'Select all', showAttributes: 'Show attributes', noAttributes: 'No attributes', noEntities: 'No entities found',
+        selectAll: 'Select all', selectEntity: 'Select entity', showAttributes: 'Show attributes', noAttributes: 'No attributes', noEntities: 'No entities found',
         previous: 'Prev', next: 'Next', page: 'Page', of: 'of', show: 'Show:',
         title: 'Data Exporter',
         loading: 'Loading...',
@@ -1370,6 +1373,8 @@ canvas {
         .entity-table td.state-val {
           font-weight: 500;
         }
+        .sort-button { appearance:none;border:0;background:transparent;color:inherit;font:inherit;text-transform:inherit;cursor:pointer;min-width:44px;min-height:44px;padding:0; }
+        .sort-button:focus-visible { outline:2px solid var(--primary-color,#3b82f6);outline-offset:2px;border-radius:4px; }
         .checkbox-cell {
           width: 30px;
           text-align: center;
@@ -1723,11 +1728,11 @@ canvas {
                 <tr>
                   <th class="checkbox-cell"><input type="checkbox" id="selectAll" ${this._config.show_select_all === false ? 'hidden' : ''} title="${this._t.selectAll}" aria-label="${this._t.selectAll}" /></th>
                   <th class="expand-cell"></th>
-                  <th data-sort="entity_id">${this._t.entityId} <span class="sort-arrow"></span></th>
-                  <th data-sort="name">${this._t.name} <span class="sort-arrow"></span></th>
-                  <th data-sort="state">${this._t.state} <span class="sort-arrow"></span></th>
-                  <th data-sort="domain">${this._t.domain} <span class="sort-arrow"></span></th>
-                  <th data-sort="attrCount">${this._t.attrs} <span class="sort-arrow"></span></th>
+                  <th data-sort="entity_id" aria-sort="none"><button type="button" class="sort-button"><span data-sort-label>${this._t.entityId}</span> <span class="sort-arrow" aria-hidden="true"></span></button></th>
+                  <th data-sort="name" aria-sort="none"><button type="button" class="sort-button"><span data-sort-label>${this._t.name}</span> <span class="sort-arrow" aria-hidden="true"></span></button></th>
+                  <th data-sort="state" aria-sort="none"><button type="button" class="sort-button"><span data-sort-label>${this._t.state}</span> <span class="sort-arrow" aria-hidden="true"></span></button></th>
+                  <th data-sort="domain" aria-sort="none"><button type="button" class="sort-button"><span data-sort-label>${this._t.domain}</span> <span class="sort-arrow" aria-hidden="true"></span></button></th>
+                  <th data-sort="attrCount" aria-sort="none"><button type="button" class="sort-button"><span data-sort-label>${this._t.attrs}</span> <span class="sort-arrow" aria-hidden="true"></span></button></th>
                 </tr>
               </thead>
               <tbody id="entityBody"></tbody>
@@ -1839,7 +1844,7 @@ canvas {
     });
 
     this.shadowRoot.querySelectorAll('th[data-sort]').forEach(th => {
-      th.addEventListener('click', () => {
+      th.querySelector('button').addEventListener('click', () => {
         const col = th.dataset.sort;
         if (this._sortBy === col) {
           this._sortAsc = !this._sortAsc;
@@ -1866,6 +1871,8 @@ canvas {
     const domainFilter = this.shadowRoot.getElementById('domainFilter');
     if (!domainFilter) return;
     const entities = this._getFilteredEntities();
+    const focused = this.shadowRoot.activeElement;
+    const focusKey = focused ? { id: focused.id, entity: focused.dataset?.entity, expand: focused.dataset?.expand } : null;
     const tbody = this.shadowRoot.getElementById('entityBody');
     const stats = this.shadowRoot.getElementById('stats');
     const exportBtn = this.shadowRoot.getElementById('exportBtn');
@@ -1887,6 +1894,7 @@ canvas {
     // Update sort arrows
     this.shadowRoot.querySelectorAll('th[data-sort]').forEach(th => {
       const arrow = th.querySelector('.sort-arrow');
+      th.setAttribute('aria-sort', th.dataset.sort === this._sortBy ? (this._sortAsc ? 'ascending' : 'descending') : 'none');
       if (th.dataset.sort === this._sortBy) {
         arrow.textContent = this._sortAsc ? ' \u25B2' : ' \u25BC';
       } else {
@@ -1913,7 +1921,7 @@ canvas {
         const attrKeys = Object.keys(attrs).filter(k => k !== 'friendly_name');
         const attrCount = attrKeys.length;
         tr.innerHTML = `
-          <td class="checkbox-cell"><input type="checkbox" data-entity="${_esc(ent.entity_id)}" ${checked} /></td>
+          <td class="checkbox-cell"><input type="checkbox" data-entity="${_esc(ent.entity_id)}" aria-label="${_esc(this._t.selectEntity + ' ' + ent.entity_id + ' (' + ent.name + ')')}" ${checked} /></td>
           <td class="expand-cell"><button class="expand-btn" data-expand="${_esc(ent.entity_id)}" title="${this._t.showAttributes}" aria-label="${this._t.showAttributes}">▶</button></td>
           <td class="entity-id" title="${_esc(ent.entity_id)}">${_esc(ent.entity_id)}</td>
           <td title="${_esc(ent.name)}">${_esc(ent.name)}</td>
@@ -2026,6 +2034,12 @@ canvas {
 
     this._updateStats();
     stats.textContent = `${entities.length} ${this._t.entities}`;
+    if (focusKey && focused && !focused.isConnected) {
+      const next = focusKey.id ? this.shadowRoot.getElementById(focusKey.id)
+        : focusKey.entity ? Array.from(this.shadowRoot.querySelectorAll('input[data-entity]')).find(node => node.dataset.entity === focusKey.entity)
+        : focusKey.expand ? Array.from(this.shadowRoot.querySelectorAll('button[data-expand]')).find(node => node.dataset.expand === focusKey.expand) : null;
+      next?.focus({ preventScroll: true });
+    }
   }
 
   _updateStats() {

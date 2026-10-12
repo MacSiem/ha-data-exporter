@@ -127,3 +127,31 @@ test('real connection events discard ready state and all subscriptions detach on
 test('cached hass data with no actual connection cannot become a confirmed source',async()=>{
  const f=fixture();try{f.card.hass={...f.hass,connection:null};await f.open();assert.equal(f.node('status').dataset.resultState,'no_data');assert.equal(f.node('save').disabled,true);assert.equal(f.blobs.length,0);assert.equal(f.anchors.length,0);}finally{f.close();}
 });
+
+test('disconnect event fences exports before the connection flag catches up',async()=>{
+ const f=fixture();try{
+  const listeners=new Map(),connection={connected:true,addEventListener(type,fn){listeners.set(type,fn);},removeEventListener(type,fn){if(listeners.get(type)===fn)listeners.delete(type);}};
+  f.card.hass={...f.hass,connection};await f.open();listeners.get('disconnected')();
+  assert.equal(f.dialog(),undefined);assert.equal(f.card._getExportContext().connected,false);assert.equal(f.anchors.length,0);
+  listeners.get('ready')();await f.open();assert.equal(f.node('save').disabled,false);assert.equal(f.anchors.length,0);
+ }finally{f.close();}
+});
+
+test('browser offline clears the preview even while cached HA connection says connected',async()=>{
+ const f=fixture();try{
+  await f.open();f.dom.window.dispatchEvent(new f.dom.window.Event('offline'));
+  assert.equal(f.dialog(),undefined);assert.equal(f.card._getExportContext().connected,false);
+  f.dom.window.dispatchEvent(new f.dom.window.Event('online'));await f.open();assert.equal(f.node('save').disabled,false);assert.equal(f.anchors.length,0);
+ }finally{f.close();}
+});
+
+test('international monetary and tariff units retain their meaning while unsafe unit text is excluded',async()=>{
+ const f=fixture();try{
+  for(const unit of ['JPY','EUR','PLN/kWh']){
+   f.states['sensor.zero'].attributes.unit_of_measurement=unit;f.card.hass=f.hass;await f.open();
+   f.node('format').value='json';f.node('format').dispatchEvent(new f.dom.window.Event('change'));f.node('filename').value='currency.json';f.node('filename').dispatchEvent(new f.dom.window.Event('input'));f.node('refresh').click();await tick();
+   const rows=JSON.parse(f.node('preview').textContent).rows;
+   assert.equal(rows.find(r=>r.state===0).attributes.unit_of_measurement,unit);f.node('cancel').click();
+  }
+ }finally{f.close();}
+});

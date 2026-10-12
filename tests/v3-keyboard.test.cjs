@@ -50,3 +50,23 @@ test('ordinary language update translates sort controls without replacing the fo
     assert.match(f.root.querySelector('[data-entity="sensor.synthetic_a"]').getAttribute('aria-label'),/Zaznacz.*sensor\.synthetic_a/);
   }finally{f.dom.window.close();}
 });
+
+test('touch label selects one record and keeps its export identity',()=>{
+ const f=fixture();try {
+  const input=f.root.querySelector('[data-entity="sensor.synthetic_a"]');
+  const hitbox=input.closest('label');assert.ok(hitbox,'record has a native label hit area');
+  hitbox.click();assert.equal(input.checked,true);
+  assert.deepEqual([...f.card._selectedEntities],['sensor.synthetic_a']);
+  assert.equal(f.root.querySelector('#exportBtn').disabled,false);
+  hitbox.click();assert.equal(input.checked,false);assert.equal(f.card._selectedEntities.size,0);
+ } finally {f.dom.window.close();}
+});
+test('header touch label selects filtered records without dropping an outside selection',()=>{
+ const f=fixture();try {
+  const row=f.root.querySelector('[data-entity="sensor.synthetic_a"]');row.click();
+  const search=f.root.querySelector('#searchFilter');search.value='Alpha';search.dispatchEvent(new f.dom.window.Event('input',{bubbles:true}));
+  const select=f.root.querySelector('#selectAll');const hitbox=select.closest('label');assert.ok(hitbox,'header has native label hit area');
+  hitbox.click();assert.equal(f.card._selectedEntities.has('sensor.synthetic_z'),true);assert.equal(f.card._selectedEntities.has('sensor.synthetic_a'),true);
+  hitbox.click();assert.equal(f.card._selectedEntities.has('sensor.synthetic_z'),false);assert.equal(f.card._selectedEntities.has('sensor.synthetic_a'),true);
+ } finally {f.dom.window.close();}
+});

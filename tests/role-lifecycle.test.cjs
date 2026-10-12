@@ -18,15 +18,17 @@ test('support follows admin to household to unknown to admin without a language 
   f.card.hass=f.hass;assert.ok(f.card.shadowRoot.querySelector('.donate-section'));
  }finally{f.dom.window.close();}
 });
-test('an export awaiting registry metadata is cancelled after account replacement',async()=>{
+test('an open export is cancelled after account replacement without a download',async()=>{
  const f=fixture();try{
-  const pending=[];let downloads=0;
-  f.dom.window.confirm=()=>true;
+  let downloads=0;
   f.dom.window.URL.createObjectURL=()=>{downloads++;return 'blob:qa';};f.dom.window.URL.revokeObjectURL=()=>{};
-  f.card.hass={...f.hass,callWS:()=>new Promise(resolve=>pending.push(resolve))};
-  const operation=f.card._export('all');assert.equal(pending.length,3);
-  f.card.hass={...f.hass,user:{id:'household',is_admin:false},states:{}};
-  pending.forEach(resolve=>resolve([]));await operation;
+  f.card.hass={...f.hass,connection:{connected:true}};
+  f.card._export('all');for(let i=0;i<8;i++)await Promise.resolve();
+  const dialog=f.card.shadowRoot.querySelector('[data-ha-tools-export]').shadowRoot;
+  assert.equal(dialog.querySelector('[data-export=save]').disabled,false);
+  f.card.hass={...f.card._hass,user:{id:'household',is_admin:false},states:{}};
+  assert.equal(dialog.querySelector('[data-export=preview]').textContent,'');
+  dialog.querySelector('[data-export=save]').click();
   assert.equal(downloads,0);
  }finally{f.dom.window.close();}
 });

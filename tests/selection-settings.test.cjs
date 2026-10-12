@@ -13,13 +13,13 @@ function fixture(){
 }
 test('selected export spans UI filters but respects configured domains and missing entities',async()=>{
  const f=fixture();try{
+  f.card.hass={...f.card._hass,connection:{connected:true}};
   f.card._selectedEntities=new Set(['sensor.a','sensor.b','switch.hidden','sensor.removed']);
   f.card._filterSearch='no-match';f.card._filterDomain='switch';f.card._updateEntities();
-  const warnings=[];f.dom.window.confirm=msg=>{warnings.push(msg);return false;};
   await f.card._export('selected');
-  assert.match(warnings[0],/contain 2 entities/);
+  for(let i=0;i<8;i++)await Promise.resolve();let dialog=f.card.shadowRoot.querySelector('[data-ha-tools-export]').shadowRoot;assert.match(dialog.querySelector('[data-export=source-limit]').textContent,/Rows: 2/);dialog.querySelector('[data-export=cancel]').click();
   assert.equal(f.card.shadowRoot.getElementById('exportBtn').textContent,'Export Selected (2)');
-  await f.card._export('all');assert.match(warnings[1],/contain 0 entities/);
+  await f.card._export('all');for(let i=0;i<8;i++)await Promise.resolve();dialog=f.card.shadowRoot.querySelector('[data-ha-tools-export]').shadowRoot;assert.equal(dialog.querySelector('[data-export=status]').dataset.resultState,'no_data');dialog.querySelector('[data-export=cancel]').click();
   f.card.hass={...f.card._hass,states:{'sensor.a':f.states['sensor.a']}};
   f.card._updateStats();assert.equal(f.card.shadowRoot.getElementById('exportBtn').textContent,'Export Selected (1)');
  }finally{f.dom.window.close();}

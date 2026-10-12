@@ -886,7 +886,7 @@ const _LOCAL_INTRO_PL = {
   steps: ['Filtruj według domeny lub wyszukuj encje na bieżąco.', 'Zrób snapshot lub eksportuj zaznaczone encje do CSV / JSON.', 'Sprawdź dokładną zawartość pliku i pola prywatne przed zapisem.']
 };
 const _LOCAL_SUPPORT_KEY = 'ha-data-exporter-support-dismissed';
-const _LOCAL_DONATE_HTML = '<div class="donate-section" data-source="own-card" style="margin:8px 0 0;padding:4px 0;background:none;border:0;box-shadow:none;min-height:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex-direction:row;justify-content:flex-start;text-align:left"><a href="https://buymeacoffee.com/macsiem" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--secondary-text-color,#64748b);font-weight:400;text-decoration:underline">Optional support for HA Tools</a><button type="button" class="support-dismiss" aria-label="Dismiss support link" style="margin-left:auto;padding:2px 6px;min-height:0;line-height:1;border:0;background:none;color:var(--secondary-text-color,#64748b);cursor:pointer">×</button></div>';
+const _LOCAL_DONATE_HTML = '<div class="donate-section" data-source="own-card" style="margin:8px 0 0;padding:4px 0;background:none;border:0;box-shadow:none;min-height:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex-direction:row;justify-content:flex-start;text-align:left"><a href="https://buymeacoffee.com/macsiem" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;min-height:44px;min-width:44px;font-size:11px;color:var(--secondary-text-color,#64748b);font-weight:400;text-decoration:underline">Optional support for HA Tools</a><button type="button" class="support-dismiss" aria-label="Dismiss support link" style="margin-left:auto;padding:2px 6px;min-height:44px;min-width:44px;line-height:1;border:0;background:none;color:var(--secondary-text-color,#64748b);cursor:pointer">×</button></div>';
 function _renderLocalSupport(language) {
   return language === 'pl' ? _LOCAL_DONATE_HTML
     .replace('Optional support for HA Tools', 'Dobrowolne wsparcie HA Tools')
@@ -2171,7 +2171,7 @@ canvas {
             <table class="entity-table">
               <thead>
                 <tr>
-                  <th class="checkbox-cell"><input type="checkbox" id="selectAll" ${this._config.show_select_all === false ? 'hidden' : ''} title="${this._t.selectAll}" aria-label="${this._t.selectAll}" /></th>
+                  <th class="checkbox-cell"><label class="touch-checkbox" ${this._config.show_select_all === false ? 'hidden' : ''}><input type="checkbox" id="selectAll" ${this._config.show_select_all === false ? 'hidden' : ''} title="${this._t.selectAll}" aria-label="${this._t.selectAll}" /></label></th>
                   <th class="expand-cell"></th>
                   <th data-sort="entity_id" aria-sort="none"><button type="button" class="sort-button"><span data-sort-label>${this._t.entityId}</span> <span class="sort-arrow" aria-hidden="true"></span></button></th>
                   <th data-sort="name" aria-sort="none"><button type="button" class="sort-button"><span data-sort-label>${this._t.name}</span> <span class="sort-arrow" aria-hidden="true"></span></button></th>
@@ -2369,7 +2369,7 @@ canvas {
         const attrKeys = Object.keys(attrs).filter(k => k !== 'friendly_name');
         const attrCount = attrKeys.length;
         tr.innerHTML = `
-          <td class="checkbox-cell"><input type="checkbox" data-entity="${_esc(ent.entity_id)}" aria-label="${_esc(this._t.selectEntity + ' ' + ent.entity_id + ' (' + ent.name + ')')}" ${checked} /></td>
+          <td class="checkbox-cell"><label class="touch-checkbox"><input type="checkbox" data-entity="${_esc(ent.entity_id)}" aria-label="${_esc(this._t.selectEntity + ' ' + ent.entity_id + ' (' + ent.name + ')')}" ${checked} /></label></td>
           <td class="expand-cell"><button class="expand-btn" data-expand="${_esc(ent.entity_id)}" title="${this._t.showAttributes}" aria-label="${this._t.showAttributes}" aria-expanded="${this._expandedEntities.has(ent.entity_id)}" aria-controls="${_esc('details-' + ent.entity_id)}">▶</button></td>
           <td class="entity-id" title="${_esc(ent.entity_id)}">${_esc(ent.entity_id)}</td>
           <td class="entity-name" title="${_esc(ent.name)}">${_esc(ent.name)}</td>
@@ -2894,7 +2894,13 @@ canvas {
       .card {container-type:inline-size;container-name:data-card;}
       .toolbar {flex-wrap:wrap;} .card button,.card select,.card input[type=text],.feature-controls label,.feature-controls summary {min-height:44px;} .card button,.intro-banner .intro-dismiss {min-width:44px;min-height:44px;} .intro-banner{padding-right:72px;} .feature-controls summary {display:flex;align-items:center;}
       .feature-controls {display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0;}
-      .feature-controls label {display:inline-flex;gap:6px;align-items:center;}
+      .feature-controls label {display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0;max-width:100%;}
+      .feature-controls select {min-width:0;}
+      .card label:has(input[type=checkbox]) {min-height:44px;min-width:44px;}
+      .touch-checkbox {display:inline-flex;align-items:center;justify-content:center;box-sizing:border-box;width:44px;height:44px;cursor:pointer;}
+      .touch-checkbox[hidden] {display:none;}
+      .checkbox-cell:has(.touch-checkbox) {padding:0;min-width:44px;}
+      .touch-checkbox:focus-within {outline:2px solid var(--primary-color,#2563eb);outline-offset:2px;border-radius:6px;}
       .feature-controls select {max-width:100%;} .card :focus-visible {outline:2px solid var(--primary-color,#2563eb);outline-offset:2px;}
       #exportPreview {white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;} .record-fields {display:grid;grid-template-columns:max-content 1fr;gap:6px;} .record-fields dd {margin:0;overflow-wrap:anywhere;}
       @container data-card (max-width:499px) {

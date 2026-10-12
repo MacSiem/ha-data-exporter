@@ -2279,7 +2279,7 @@ canvas {
     const style = document.createElement('style');
     style.textContent = `
       .card {container-type:inline-size;container-name:data-card;}
-      .toolbar {flex-wrap:wrap;} .card button,.card select,.card input[type=text],.feature-controls label,.feature-controls summary {min-height:44px;} .feature-controls summary {display:flex;align-items:center;}
+      .toolbar {flex-wrap:wrap;} .card button,.card select,.card input[type=text],.feature-controls label,.feature-controls summary {min-height:44px;} .card button,.intro-banner .intro-dismiss {min-width:44px;min-height:44px;} .intro-banner{padding-right:72px;} .feature-controls summary {display:flex;align-items:center;}
       .feature-controls {display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0;}
       .feature-controls label {display:inline-flex;gap:6px;align-items:center;}
       .feature-controls select {max-width:100%;} .card :focus-visible {outline:2px solid var(--primary-color,#2563eb);outline-offset:2px;}

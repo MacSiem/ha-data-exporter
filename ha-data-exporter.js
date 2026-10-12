@@ -593,6 +593,15 @@ class HADataExporter extends HTMLElement {
     this._selectedEntities = new Set();
     this._filterDomain = 'all';
     this._filterSearch = '';
+    this._filterArea = 'all';
+    this._filterDevice = 'all';
+    this._registryMetadata = null;
+    this._registryPromise = null;
+    this._registryStatus = 'idle';
+    this._exportColumns = null;
+    this._comparison = [null, null];
+    this._snapshotScope = '';
+    this._legacySnapshots = [];
     this._sortBy = 'entity_id';
     this._sortAsc = true;
     this._expandedEntities = new Set();
@@ -607,14 +616,14 @@ class HADataExporter extends HTMLElement {
   }
 
   // --- Snapshot persistence ---
-  _snapshotKey() { return 'ha-data-exporter-snapshots-' + (this._config.storage_key || 'default'); }
+  _snapshotKey() { return 'ha-data-exporter-snapshots-' + (this._config.storage_key || 'default') + (this._snapshotScope || ''); }
 
   _sanitize(str) {
     if (!str) return str;
     try { return decodeURIComponent(escape(str)); } catch(e) { return str; }
   }
 
-  _settingsKey() { return 'ha-data-exporter-settings-' + (this._config.storage_key || 'default'); }
+  _settingsKey() { return 'ha-data-exporter-settings-' + (this._config.storage_key || 'default') + (this._snapshotScope || ''); }
 
   _loadSnapshotSettings() {
     try {
@@ -656,9 +665,12 @@ class HADataExporter extends HTMLElement {
         attrs: Object.keys(s.attributes).filter(k => k !== 'friendly_name' && k !== 'icon').length
       };
     });
+    const compared = this._comparison.map(index => index === null ? null : this._snapshotChoices()[index]);
     this._snapshots.push(snap);
     this._saveSnapshots();
+    this._comparison = compared.map(snapshot => { const index = snapshot ? this._snapshotChoices().indexOf(snapshot) : -1; return index < 0 ? null : index; });
     this._updateSnapshotStatus();
+    this._refreshComparisonControls();
   }
 
   _startAutoSnapshot() {
@@ -676,6 +688,9 @@ class HADataExporter extends HTMLElement {
   _clearSnapshots() {
     this._snapshots = [];
     this._saveSnapshots();
+    this._comparison = [null, null];
+    this._legacySnapshots = [];
+    this._refreshComparisonControls();
   }
 
   _getEntityHistory(entityId) {
@@ -714,12 +729,26 @@ class HADataExporter extends HTMLElement {
 
     const previousLanguage = this._lang;
     const identity = h => JSON.stringify([h?.user?.id || null, !!h?.user?.is_admin, !!h?.user?.is_owner]);
-    const identityChanged = identity(this._hass) !== identity(hass);
+    const identityChanged = identity(this._hass) !== identity(hass) || this._hass?.connection !== hass?.connection;
     if (identityChanged) {
       this._identityEpoch++;
       this._historyCache = {};
       this._selectedEntities.clear();
       this._expandedEntities.clear();
+      this._registryMetadata = null;
+      this._registryPromise = null;
+      this._registryStatus = 'idle';
+      this._filterArea = this._filterDevice = 'all';
+      this._comparison = [null, null];
+      this._legacySnapshots = [];
+      this.shadowRoot.getElementById('exportPreview')?.replaceChildren();
+      this.shadowRoot.getElementById('previewScope')?.replaceChildren();
+      this._stopAutoSnapshot();
+      const server = hass?.auth?.data?.hassUrl || hass?.connection?.options?.url || location.origin;
+      this._snapshotScope = hass?.user?.id ? ':' + encodeURIComponent(server) + ':' + encodeURIComponent(hass.user.id) : '';
+      this._snapshots = [];
+      this._snapshotSettings = { enabled: false, interval: 60, maxSnapshots: 50 };
+      if (hass) { this._loadSnapshotSettings(); this._loadSnapshots(); }
     }
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';
     this._hass = hass;
@@ -766,6 +795,7 @@ class HADataExporter extends HTMLElement {
 
   _refreshLocaleControls() {
     _refreshLocalGuidance(this.shadowRoot, this._lang);
+    this.shadowRoot.querySelectorAll('[data-column-move]').forEach(button => { const text = this._lang === 'pl' ? (button.dataset.columnMove === '-1' ? 'W górę' : 'W dół') : (button.dataset.columnMove === '-1' ? 'Move up' : 'Move down'); button.textContent = text; button.setAttribute('aria-label', `${text}: ${button.dataset.columnKey}`); });
     // Update translated controls in place: export choices and focused inputs keep their DOM.
     const t = this._t;
     const attributes = this.shadowRoot.getElementById('includeAttrs');
@@ -804,8 +834,8 @@ class HADataExporter extends HTMLElement {
     if (!info) return;
     const PL = this._lang === 'pl';
     info.textContent = this._hass?.user?.is_admin
-      ? (PL ? 'Edytuj panel → edytuj kartę. Edytor wizualny pozwala zmienić tytuł; pozostałe opcje ustaw w YAML karty. Format eksportu, atrybuty i snapshoty zmienisz poniżej.'
-        : 'Edit dashboard → edit card. The visual editor changes the title; set other options in the card YAML. Change the export format, attributes and snapshots below.')
+      ? (PL ? 'Edytuj panel → edytuj kartę. Edytor wizualny pozwala zmienić tytuł, domeny, format, wielkość strony, atrybuty i klucz snapshotów; dodatkowe opcje ustaw w YAML karty. Format eksportu, atrybuty i snapshoty zmienisz poniżej.'
+        : 'Edit dashboard → edit card. The visual editor changes the title, domains, format, page size, attributes and snapshot key; set additional options in the card YAML. Change the export format, attributes and snapshots below.')
       : (PL ? 'Poproś administratora o zmianę konfiguracji karty. Format eksportu, atrybuty i snapshoty zmienisz poniżej.'
         : 'Ask an administrator to change the card configuration. Change the export format, attributes and snapshots below.');
   }
@@ -897,6 +927,11 @@ class HADataExporter extends HTMLElement {
       this._snapshotSettings = { enabled: false, interval: 60, maxSnapshots: 50 };
       this._loadSnapshotSettings();
       this._loadSnapshots();
+      this._comparison = [null, null];
+      this._legacySnapshots = [];
+      this._identityEpoch++;
+      this._registryPromise = null;
+      this._registryMetadata = null;
     }
     this._includeAttrsInExport = this._config.show_attributes !== false;
     // page_size is documented in the README but was never applied — the card
@@ -949,12 +984,23 @@ class HADataExporter extends HTMLElement {
       entities = entities.filter(e => e.domain === this._filterDomain);
     }
 
+    if (includeUIFilters && (this._filterArea !== 'all' || this._filterDevice !== 'all')) {
+      entities = entities.filter(e => {
+        if (!this._registryMetadata) return false;
+        const entry = this._registryMetadata.entities.get(e.entity_id);
+        const deviceId = entry?.device_id || '';
+        const areaId = entry?.area_id || this._registryMetadata.devices.get(deviceId)?.area_id || '';
+        return (this._filterArea === 'all' || (this._filterArea === '__none__' ? !areaId : areaId === this._filterArea))
+          && (this._filterDevice === 'all' || (this._filterDevice === '__none__' ? !deviceId : deviceId === this._filterDevice));
+      });
+    }
+
     if (includeUIFilters && this._filterSearch) {
       const search = this._filterSearch.toLowerCase();
       entities = entities.filter(e =>
         e.entity_id.toLowerCase().includes(search) ||
         e.name.toLowerCase().includes(search) ||
-        e.state.toLowerCase().includes(search)
+        String(e.state ?? '').toLowerCase().includes(search)
       );
     }
 
@@ -1743,6 +1789,7 @@ canvas {
         </div>
         ${this._hass?.user?.is_admin && this._config?.show_support !== false && !_localSupportDismissed() ? _renderLocalSupport(this._lang) : ''}
     `
+    this._installDataFeatures();
     _bindLocalIntroDismiss(this.shadowRoot);
     _bindLocalSupportDismiss(this.shadowRoot);
     this._attachEvents();
@@ -1922,9 +1969,9 @@ canvas {
         const attrCount = attrKeys.length;
         tr.innerHTML = `
           <td class="checkbox-cell"><input type="checkbox" data-entity="${_esc(ent.entity_id)}" aria-label="${_esc(this._t.selectEntity + ' ' + ent.entity_id + ' (' + ent.name + ')')}" ${checked} /></td>
-          <td class="expand-cell"><button class="expand-btn" data-expand="${_esc(ent.entity_id)}" title="${this._t.showAttributes}" aria-label="${this._t.showAttributes}">▶</button></td>
+          <td class="expand-cell"><button class="expand-btn" data-expand="${_esc(ent.entity_id)}" title="${this._t.showAttributes}" aria-label="${this._t.showAttributes}" aria-expanded="${this._expandedEntities.has(ent.entity_id)}" aria-controls="${_esc('details-' + ent.entity_id)}">▶</button></td>
           <td class="entity-id" title="${_esc(ent.entity_id)}">${_esc(ent.entity_id)}</td>
-          <td title="${_esc(ent.name)}">${_esc(ent.name)}</td>
+          <td class="entity-name" title="${_esc(ent.name)}">${_esc(ent.name)}</td>
           <td class="state-val" title="${_esc(ent.state)}">${_esc(ent.state)}</td>
           <td>${_esc(ent.domain)}</td>
           <td><span class="attr-count">${attrCount}</span></td>
@@ -1944,9 +1991,10 @@ canvas {
         attrRow.className = 'attr-row';
         attrRow.style.display = 'none';
         attrRow.dataset.attrFor = ent.entity_id;
+        attrRow.id = 'details-' + ent.entity_id;
         const attrTd = document.createElement('td');
         attrTd.colSpan = 7;
-        let attrHtml = '<div class="attr-container">';
+        let attrHtml = '<div class="attr-container"><dl class="record-fields">' + Object.entries({ ...this._buildExportData([ent], this._registryMetadata || {entities:new Map(),devices:new Map(),areas:new Map()})[0], attributes: undefined, attribute_count: attrCount }).filter(([key]) => key !== 'attributes').map(([key,value]) => '<dt>' + _esc(key) + '</dt><dd>' + _esc(String(value ?? '')) + '</dd>').join('') + '</dl>';
         // Attributes section
         attrHtml += '<div class="attr-grid">';
         if (attrKeys.length === 0) {
@@ -1989,17 +2037,19 @@ canvas {
 
         // Expand/collapse handler
         tr.querySelector('.expand-btn').addEventListener('click', (e) => {
-          const btn = e.target;
+          const btn = e.currentTarget;
           const entityId = btn.dataset.expand;
           const row = tbody.querySelector(`tr[data-attr-for="${entityId}"]`);
           if (row.style.display === 'none') {
             row.style.display = '';
             btn.classList.add('expanded');
+            btn.setAttribute('aria-expanded', 'true');
             this._expandedEntities.add(entityId);
             this._fetchHistory(entityId);
           } else {
             row.style.display = 'none';
             btn.classList.remove('expanded');
+            btn.setAttribute('aria-expanded', 'false');
             this._expandedEntities.delete(entityId);
           }
         });
@@ -2032,6 +2082,7 @@ canvas {
       this._updateEntities();
     });
 
+    this._refreshFeatureLabels();
     this._updateStats();
     stats.textContent = `${entities.length} ${this._t.entities}`;
     if (focusKey && focused && !focused.isConnected) {
@@ -2048,6 +2099,8 @@ canvas {
     const count = this._getSelectedEntities().length;
     exportBtn.textContent = `${this._t.exportSelected} (${count})`;
     exportBtn.disabled = count === 0;
+    const note = this.shadowRoot.getElementById('selectionScope');
+    if (note) { const visible = new Set(this._getFilteredEntities().map(e => e.entity_id)); const outside = this._getSelectedEntities().filter(e => !visible.has(e.entity_id)).length; note.textContent = this._lang === 'pl' ? `Zaznaczone: ${count}; poza filtrami: ${outside}. Eksport zaznaczonych obejmuje także encje poza filtrami. Eksportuj wszystko używa bieżących filtrów.` : `Selected: ${count}; outside filters: ${outside}. Selected export includes entities outside filters. Export All uses current filters.`; }
   }
 
   async _loadRegistryMetadata() {
@@ -2056,6 +2109,7 @@ canvas {
       this._hass.callWS({ type: 'config/device_registry/list' }),
       this._hass.callWS({ type: 'config/area_registry/list' })
     ]);
+    if (![entities, devices, areas].every(Array.isArray)) throw new Error('Invalid registry response');
     return {
       entities: new Map(entities.map(entry => [entry.entity_id, entry])),
       devices: new Map(devices.map(entry => [entry.id, entry])),
@@ -2090,8 +2144,9 @@ canvas {
     });
   }
 
-  async _export(mode) {
+  async _export(mode, preview = false) {
     const identityEpoch = this._identityEpoch;
+    if (mode === 'diff' && (!this._comparison.every(i => i !== null && this._snapshotChoices()[i]) || this._comparison[0] === this._comparison[1])) return;
     const format = this.shadowRoot.getElementById('formatSelect').value;
     const entities = this._getFilteredEntities();
     let data;
@@ -2102,10 +2157,12 @@ canvas {
       data = entities;
     }
 
+    if (mode === 'diff') data = this._comparisonFrame();
+
     // Privacy: warn before exporting full state/attributes (entity names, locations,
     // sensor values, optional attributes can contain sensitive data).
     const PL = (this._lang === 'pl') || (this._hass?.language || '').startsWith('pl');
-    const includeAttrs = !!this._includeAttrsInExport;
+    const includeAttrs = mode !== 'diff' && !!this._includeAttrsInExport;
     const warn = PL
       ? `Eksportowany plik (${format.toUpperCase()}) będzie zawierał ${data.length} encji wraz ze stanami${includeAttrs ? ' i atrybutami (mogą zawierać wrażliwe dane)' : ''}.\n\nNie wysyłaj go publicznie ani do zewnętrznych usług bez świadomej zgody.\n\nKontynuować?`
       : `The export (${format.toUpperCase()}) will contain ${data.length} entities with states${includeAttrs ? ' and attributes (may contain sensitive data)' : ''}.\n\nDo not share publicly or with third-party services without informed consent.\n\nContinue?`;
@@ -2113,31 +2170,26 @@ canvas {
 
     let metadata;
     try {
-      metadata = await this._loadRegistryMetadata();
+      metadata = mode === 'diff' ? null : await this._ensureRegistryMetadata();
+      if (mode !== 'diff' && !metadata) throw new Error('Registry metadata unavailable');
     } catch (error) {
+      if (identityEpoch !== this._identityEpoch || !this._hass) return;
       console.error('[ha-data-exporter] Registry lookup failed:', error);
       alert(PL ? 'Nie udało się pobrać rejestrów encji, urządzeń i obszarów. Eksport przerwany.'
         : 'Could not load entity, device and area registries. Export cancelled.');
       return;
     }
     if (identityEpoch !== this._identityEpoch || !this._hass) return;
-    const exportData = this._buildExportData(data, metadata);
+    const exportData = this._exportFrame(mode, metadata, data);
 
-    let content, mime, ext;
-
-    if (format === 'csv') {
-      content = this._toCSV(exportData);
-      mime = 'text/csv';
-      ext = 'csv';
-    } else if (format === 'json') {
-      content = JSON.stringify(exportData, null, 2);
-      mime = 'application/json';
-      ext = 'json';
-    } else if (format === 'yaml') {
-      content = this._toYAML(exportData);
-      mime = 'text/yaml';
-      ext = 'yaml';
+    const content = this._serializeFrame(exportData, format);
+    if (preview) {
+      this.shadowRoot.getElementById('exportPreview').textContent = content;
+      this.shadowRoot.getElementById('previewScope').textContent = (PL ? 'Podgląd: ' : 'Preview: ') + (mode === 'selected' ? (PL ? 'zaznaczone, także poza filtrami' : 'selected, including outside filters') : mode === 'diff' ? (PL ? 'zmienione stany snapshotów lokalnych' : 'changed browser-local snapshot states') : (PL ? 'wszystkie w aktualnych filtrach' : 'all within current filters')) + ` (${exportData.length})`;
+      return;
     }
+    const ext = format;
+    const mime = {csv:'text/csv',json:'application/json',yaml:'text/yaml'}[format];
 
     const blob = new Blob([content], { type: mime });
     const url = URL.createObjectURL(blob);
@@ -2146,6 +2198,192 @@ canvas {
     a.download = `ha-export-${new Date().toISOString().slice(0,10)}.${ext}`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  _projectColumns(rows) {
+    if (this._exportColumns === null) return rows;
+    return rows.map(row => Object.fromEntries(this._exportColumns.map(key => [key, key.startsWith('attributes.') ? row.attributes?.[key.slice(11)] ?? null : row[key] ?? null])));
+  }
+
+  _exportFrame(mode, metadata, entities = null) {
+    return mode === 'diff' ? this._comparisonFrame() : this._projectColumns(this._buildExportData(entities || (mode === 'selected' ? this._getSelectedEntities() : this._getFilteredEntities()), metadata));
+  }
+
+  _serializeFrame(rows, format) {
+    if (format === 'json') return JSON.stringify(rows, null, 2);
+    const generic = this._exportColumns !== null || rows.some(row => Object.hasOwn(row, 'before_state'));
+    if (!generic) return format === 'yaml' ? this._toYAML(rows) : this._toCSV(rows);
+    if (format === 'yaml') return rows.map(row => Object.entries(row).map(([key,value], index) => `${index ? '  ' : '- '}${JSON.stringify(key)}: ${JSON.stringify(value ?? null)}`).join('\n')).join('\n') + (rows.length ? '\n' : '');
+    const headers = rows.length ? Object.keys(rows[0]) : [];
+    const cell = value => {
+      const str = value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
+      const unsafe = typeof value !== 'number' && /^[\s\u0000-\u001f]*[=+\-@]/.test(str);
+      const safe = unsafe ? "'" + str : str;
+      return unsafe || /[,"\r\n\t]/.test(safe) ? '"' + safe.replace(/"/g,'""') + '"' : safe;
+    };
+    return headers.length ? [headers.map(cell).join(','), ...rows.map(row => headers.map(key => cell(row[key])).join(','))].join('\n') : '';
+  }
+
+  _compareSnapshots(before, after) {
+    if (!before?.entities || !after?.entities) return [];
+    return [...new Set([...Object.keys(before.entities), ...Object.keys(after.entities)])].sort().flatMap(entity_id => {
+      const a = before.entities[entity_id], b = after.entities[entity_id];
+      // Only exact state comparison; never compare attributes or interpolate gaps.
+      if (a && b && a.state === b.state) return [];
+      return [{ entity_id, change: !a ? 'added' : !b ? 'removed' : 'changed', before_state: a ? a.state ?? null : null,
+        after_state: b ? b.state ?? null : null, before_timestamp: before.ts, after_timestamp: after.ts, source: 'browser-local snapshot' }];
+    });
+  }
+
+  _snapshotChoices() { return [...this._snapshots, ...this._legacySnapshots]; }
+
+  _loadLegacyForComparison() {
+    if (!this._snapshotScope) return;
+    const L = this._lang === 'pl';
+    if (!confirm(L ? 'Otworzyć wcześniejsze snapshoty tej karty w tej przeglądarce? Starsze zapisy nie mają oznaczonego użytkownika. Zostaną użyte tylko do porównania stanów, bez kopiowania lub usuwania zapisów.' : 'Open earlier snapshots of this card in this browser? Older snapshots have no user label. They will only be used for state comparison, without copying or deleting stored snapshots.')) return;
+    try {
+      const stored = JSON.parse(localStorage.getItem('ha-data-exporter-snapshots-' + (this._config.storage_key || 'default')) || '[]');
+      this._legacySnapshots = Array.isArray(stored) ? stored.filter(snapshot => snapshot && typeof snapshot.entities === 'object' && snapshot.entities !== null) : [];
+      this._comparison = [null, null];
+      this._refreshComparisonControls();
+    } catch (_) { alert(L ? 'Nie można odczytać wcześniejszych snapshotów lokalnych.' : 'Could not read earlier local snapshots.'); }
+  }
+
+  _comparisonFrame() {
+    if (this._comparison.some(index => index === null) || this._comparison[0] === this._comparison[1]) return [];
+    return this._compareSnapshots(this._snapshotChoices()[this._comparison[0]], this._snapshotChoices()[this._comparison[1]]);
+  }
+
+  async _ensureRegistryMetadata() {
+    if (this._registryMetadata) return this._registryMetadata;
+    if (this._registryPromise) return this._registryPromise;
+    if (!this._hass?.callWS) return null;
+    const epoch = this._identityEpoch;
+    const promise = this._loadRegistryMetadata().then(metadata => {
+      if (epoch !== this._identityEpoch || !this._hass) return null;
+      this._registryMetadata = metadata;
+      this._registryStatus = 'ready';
+      this._refreshRegistryControls();
+      this._updateEntities();
+      return metadata;
+    }).catch(() => {
+      if (epoch === this._identityEpoch) { this._registryStatus = 'unavailable'; this._refreshRegistryControls(); }
+      return null;
+    }).finally(() => { if (epoch === this._identityEpoch) this._registryPromise = null; });
+    this._registryPromise = promise;
+    return promise;
+  }
+
+  _installDataFeatures() {
+    const L = this._lang === 'pl';
+    const style = document.createElement('style');
+    style.textContent = `
+      .card {container-type:inline-size;container-name:data-card;}
+      .toolbar {flex-wrap:wrap;} .card button,.card select,.card input[type=text],.feature-controls label,.feature-controls summary {min-height:44px;} .feature-controls summary {display:flex;align-items:center;}
+      .feature-controls {display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0;}
+      .feature-controls label {display:inline-flex;gap:6px;align-items:center;}
+      .feature-controls select {max-width:100%;} .card :focus-visible {outline:2px solid var(--primary-color,#2563eb);outline-offset:2px;}
+      #exportPreview {white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;} .record-fields {display:grid;grid-template-columns:max-content 1fr;gap:6px;} .record-fields dd {margin:0;overflow-wrap:anywhere;}
+      @container data-card (max-width:499px) {
+        .toolbar {gap:8px;} .toolbar input {min-width:0;flex:1 1 100%;}
+        .table-container {overflow:visible;max-height:none;} table,tbody {display:block;width:100%;} thead {display:block;} thead tr {display:flex;flex-wrap:wrap;} thead th {display:block;}
+        #entityBody > tr:not(.attr-row) {display:grid;grid-template-columns:44px 1fr 44px;gap:4px;padding:10px 0;border-bottom:1px solid var(--divider-color,#ddd);}
+        #entityBody > tr:not(.attr-row) td {display:block;border:0;padding:4px;min-width:0;white-space:normal;overflow-wrap:anywhere;}
+        #entityBody .checkbox-cell {grid-column:1;grid-row:1 / 4;align-self:center;} #entityBody .expand-cell {grid-column:3;grid-row:1 / 4;align-self:center;}
+        #entityBody .entity-name {grid-column:2;grid-row:1;font-weight:600;} #entityBody .state-val {grid-column:2;grid-row:2;} #entityBody .entity-id {grid-column:2;grid-row:3;font-size:12px;}
+        #entityBody > tr:not(.attr-row) td:nth-child(6),#entityBody > tr:not(.attr-row) td:nth-child(7) {display:none;}
+        .attr-row,.attr-row td {display:block;} .pagination {flex-wrap:wrap;} .record-fields {grid-template-columns:1fr;}
+      }`;
+    this.shadowRoot.append(style);
+    const controls = document.createElement('section');
+    controls.className = 'feature-controls';
+    controls.innerHTML = `<label><span data-feature-label="area"></span><select id="areaFilter"></select></label>
+      <label><span data-feature-label="device"></span><select id="deviceFilter"></select></label><button type="button" id="clearFilters"></button><button type="button" id="loadRegistryFilters"></button><span id="registryStatus" role="status"></span>
+      <details><summary data-feature-label="columns"></summary><div id="columnControls"></div></details>
+      <label><span data-feature-label="scope"></span><select id="previewMode"><option value="all"></option><option value="selected"></option><option value="diff"></option></select></label>
+      <button type="button" id="previewExport"></button><span id="selectionScope"></span>`;
+    this.shadowRoot.querySelector('.toolbar').after(controls);
+    const compare = document.createElement('section');
+    compare.className = 'feature-controls';
+    compare.innerHTML = `<span data-feature-label="comparison"></span><label><span data-feature-label="before"></span><select id="compareBefore"></select></label><label><span data-feature-label="after"></span><select id="compareAfter"></select></label><button type="button" id="exportDiff"></button><button type="button" id="loadLegacySnapshots"></button><span id="diffCount" role="status"></span>`;
+    this.shadowRoot.querySelector('.snapshot-bar').after(compare);
+    const preview = document.createElement('section');
+    preview.innerHTML = '<p id="previewScope" role="status"></p><pre id="exportPreview" tabindex="0"></pre>';
+    compare.after(preview);
+    for (const [id, field] of [['areaFilter','_filterArea'],['deviceFilter','_filterDevice']]) this.shadowRoot.getElementById(id).addEventListener('change', e => { this[field] = e.target.value; this._currentPage=0; this._updateEntities(); });
+    this.shadowRoot.getElementById('loadRegistryFilters').addEventListener('click', () => { if (this._registryPromise) return; this._registryMetadata=null; this._registryStatus='loading'; this._refreshRegistryControls(); this._ensureRegistryMetadata(); });
+    this.shadowRoot.getElementById('clearFilters').addEventListener('click', () => {
+      this._filterDomain=this._filterArea=this._filterDevice='all'; this._filterSearch=''; this._currentPage=0;
+      for (const id of ['domainFilter','areaFilter','deviceFilter']) this.shadowRoot.getElementById(id).value='all';
+      this.shadowRoot.getElementById('searchFilter').value=''; this._updateEntities();
+    });
+    controls.querySelector('details').addEventListener('toggle', event => { if (event.currentTarget.open) this._refreshColumnControls(); });
+    this.shadowRoot.getElementById('previewExport').addEventListener('click', () => this._export(this.shadowRoot.getElementById('previewMode').value, true));
+    this.shadowRoot.getElementById('exportDiff').addEventListener('click', () => this._export('diff'));
+    this.shadowRoot.getElementById('loadLegacySnapshots').addEventListener('click', () => this._loadLegacyForComparison());
+    for (const [id,index] of [['compareBefore',0],['compareAfter',1]]) this.shadowRoot.getElementById(id).addEventListener('change', e => { this._comparison[index] = e.target.value === '' ? null : Number(e.target.value); this._refreshComparisonControls(); });
+    this._refreshRegistryControls(); this._refreshColumnControls(); this._refreshComparisonControls(); this._refreshFeatureLabels();
+  }
+
+  _refreshFeatureLabels() {
+    const L=this._lang==='pl';
+    const labels = L ? {area:'Obszar',device:'Urządzenie',columns:'Kolumny i kolejność eksportu',scope:'Zakres podglądu',comparison:'Porównanie snapshotów tylko w tej przeglądarce (wyłącznie stan)',before:'Przed',after:'Po'}
+      : {area:'Area',device:'Device',columns:'Export columns and order',scope:'Preview scope',comparison:'Snapshots in this browser only (state comparison)',before:'Before',after:'After'};
+    this.shadowRoot.querySelectorAll('[data-feature-label]').forEach(node=>{node.textContent=labels[node.dataset.featureLabel];});
+    for (const [id,text] of [['loadRegistryFilters',L?'Wczytaj filtry obszarów i urządzeń':'Load area and device filters'],['loadLegacySnapshots',L?'Otwórz wcześniejsze zapisy lokalne':'Open earlier local snapshots'],['clearFilters',L?'Wyczyść filtry':'Clear filters'],['previewExport',L?'Podgląd eksportu':'Preview export'],['exportDiff',L?'Eksport zmian stanów':'Export state changes']]) {const node=this.shadowRoot.getElementById(id);if(node)node.textContent=text;}
+    const options=this.shadowRoot.getElementById('previewMode')?.options;
+    if(options) [L?'Wszystkie w filtrach':'All within filters',L?'Zaznaczone (także poza filtrami)':'Selected (including outside filters)',L?'Zmiany stanów snapshotów':'Snapshot state changes'].forEach((text,i)=>options[i].textContent=text);
+    this._refreshRegistryControls(); this._refreshComparisonControls();
+  }
+
+  _refreshRegistryControls() {
+    const L=this._lang==='pl', metadata=this._registryMetadata;
+    for (const [id,entries,field,name] of [['areaFilter',metadata?.areas,'_filterArea','area'],['deviceFilter',metadata?.devices,'_filterDevice','device']]) {
+      const select=this.shadowRoot.getElementById(id);if(!select)continue;
+      select.replaceChildren();
+      const add=(value,text)=>{const option=document.createElement('option');option.value=value;option.textContent=text;select.append(option);};
+      add('all',L?'Wszystkie':'All');add('__none__',L?(name==='area'?'Bez obszaru':'Bez urządzenia'):(name==='area'?'No area':'No device'));
+      if(entries) Array.from(entries.values()).sort((a,b)=>String(a.name_by_user||a.name||a.id||a.area_id).localeCompare(String(b.name_by_user||b.name||b.id||b.area_id))).forEach(entry=>add(name === 'area' ? entry.area_id : entry.id,entry.name_by_user||entry.name||entry.id||entry.area_id));
+      select.value=this[field];select.disabled=!metadata;
+    }
+    const status=this.shadowRoot.getElementById('registryStatus');if(status)status.textContent=metadata?'':this._registryStatus==='idle'?(L?'Wczytaj rejestry HA, aby filtrować obszary i urządzenia.':'Load HA registries to filter areas and devices.'):this._registryStatus==='unavailable'?(L?'Rejestry niedostępne; filtry obszarów i urządzeń wyłączone.':'Registries unavailable; area and device filters disabled.'):(L?'Pobieranie rejestrów…':'Loading registries…');
+  }
+
+  _availableColumns() {
+    const keys = new Set();
+    this._getFilteredEntities(false).forEach(entity => Object.keys(entity.attributes || {}).filter(key => key !== 'friendly_name').forEach(key => keys.add('attributes.' + key)));
+    return ['entity_id','friendly_name','state','domain','last_changed','device_id','device_name','area_id','area_name', ...Array.from(keys).sort()];
+  }
+
+  _refreshColumnControls() {
+    const container=this.shadowRoot.getElementById('columnControls');if(!container)return;
+    const L=this._lang==='pl';
+    const available=this._availableColumns();
+    const selected=this._exportColumns ?? available;
+    container.replaceChildren();
+    for(const key of [...selected,...available.filter(key=>!selected.includes(key))]) {
+      const label=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.checked=selected.includes(key);check.setAttribute('aria-label',key);
+      check.addEventListener('change',()=>{const current=this._exportColumns ?? [...available];this._exportColumns=check.checked?[...current,key]:current.filter(k=>k!==key);this._refreshColumnControls();Array.from(container.querySelectorAll('input')).find(node => node.getAttribute('aria-label') === key)?.focus();});
+      label.append(check,document.createTextNode(key));container.append(label);
+      if(selected.includes(key)) for(const [offset,text] of [[-1,L?'W górę':'Move up'],[1,L?'W dół':'Move down']]) {
+        const button=document.createElement('button');button.type='button';button.textContent=text;button.dataset.columnMove=String(offset);button.dataset.columnKey=key;button.setAttribute('aria-label',`${text}: ${key}`);button.disabled=selected.indexOf(key)+offset<0||selected.indexOf(key)+offset>=selected.length;
+        button.addEventListener('click',()=>{const list=[...selected],i=list.indexOf(key);[list[i],list[i+offset]]=[list[i+offset],list[i]];this._exportColumns=list;this._refreshColumnControls();Array.from(container.querySelectorAll('button')).find(node=>node.getAttribute('aria-label')===`${text}: ${key}`)?.focus();});container.append(button);
+      }
+    }
+  }
+
+  _refreshComparisonControls() {
+    const L=this._lang==='pl';
+    for(const [id,index] of [['compareBefore',0],['compareAfter',1]]) {
+      const select=this.shadowRoot.getElementById(id);if(!select)continue;
+      select.replaceChildren();const empty=document.createElement('option');empty.value='';empty.textContent=L?'Wybierz zapis':'Choose snapshot';select.append(empty);
+      this._snapshotChoices().forEach((snapshot,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=`${i+1}: ${snapshot.ts}`;select.append(option);});
+      select.value=this._comparison[index]===null?'':String(this._comparison[index]);
+    }
+    const valid=this._comparison.every(i=>i!==null&&!!this._snapshotChoices()[i])&&this._comparison[0]!==this._comparison[1];
+    const button=this.shadowRoot.getElementById('exportDiff');if(button)button.disabled=!valid;
+    const legacy=this.shadowRoot.getElementById('loadLegacySnapshots');if(legacy)legacy.disabled=!this._snapshotScope;
+    const count=this.shadowRoot.getElementById('diffCount');if(count)count.textContent=valid?`${this._comparisonFrame().length} ${L?'zmian; unavailable/unknown zachowane dosłownie, brak encji = null':'changes; unavailable/unknown are literal, absent entity = null'}`:'';
   }
 
   _toCSV(data) {
@@ -2337,40 +2575,37 @@ console.info(
 );
 
 class HaDataExporterEditor extends HTMLElement {
-  constructor() {
-    super();
-    this.attachShadow({ mode: 'open' });
-    this._config = {};
-  }
-  setConfig(config) {
-    this._config = { ...config };
-    this._render();
-  }
-  _dispatch() {
-    this.dispatchEvent(new CustomEvent('config-changed', { detail: { config: this._config }, bubbles: true, composed: true }));
-  }
+  constructor() { super(); this.attachShadow({mode:'open'}); this._config={}; this._lang='en'; }
+  set hass(hass) { const lang=(hass?.language||navigator.language||'').startsWith('pl')?'pl':'en';if(lang!==this._lang){this._lang=lang;this._render();} }
+  setConfig(config) { this._config={...config};this._render(); }
+  _dispatch() { this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:JSON.parse(JSON.stringify(this._config))},bubbles:true,composed:true})); }
   _render() {
-    this.shadowRoot.innerHTML = `
-      <style>
-            :host { display:block; padding:16px; }
-            h3 { margin:0 0 16px; font-size:15px; font-weight:600; color:var(--bento-text, var(--primary-text-color,#1e293b)); }
-            input { outline:none; transition:border-color .2s; }
-            input:focus { border-color:var(--bento-primary, var(--primary-color,#3b82f6)); }
-        </style>
+    const L=this._lang==='pl',root=this.shadowRoot;
+    const active=root.activeElement,focus=active?.id,start=active?.selectionStart,end=active?.selectionEnd;
+    root.innerHTML=`<style>:host{display:block;padding:16px;color:var(--primary-text-color)}.sentence{line-height:2.4;display:flex;align-items:center;flex-wrap:wrap;gap:8px}input,select{box-sizing:border-box;min-height:44px;padding:8px;border:1px solid var(--divider-color,#ccc);border-radius:8px;background:var(--card-background-color);color:inherit;max-width:100%}label{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}:focus-visible{outline:2px solid var(--primary-color,#2563eb);outline-offset:2px}#editorError{color:var(--error-color,#b91c1c)}</style>
       <h3>Data Exporter</h3>
-            <div style="margin-bottom:12px;">
-              <label style="display:block;font-weight:500;margin-bottom:4px;font-size:13px;">Title</label>
-              <input type="text" id="cf_title" value="${_esc(this._config?.title) || 'Data Exporter'}"
-                style="width:100%;padding:8px 12px;border:1px solid var(--divider-color,#e2e8f0);border-radius:8px;background:var(--card-background-color,#fff);color:var(--primary-text-color,#1e293b);font-size:14px;box-sizing:border-box;">
-            </div>
-    `;
-        const f_title = this.shadowRoot.querySelector('#cf_title');
-        if (f_title) f_title.addEventListener('input', (e) => {
-          this._config = { ...this._config, title: e.target.value };
-          this._dispatch();
-        });
+      <p>${L?'Eksportuj encje w wybranym formacie. Snapshoty pozostają w tej przeglądarce.':'Export entities in your chosen format. Snapshots stay in this browser.'}</p>
+      <p class="sentence"><label>${L?'Tytuł karty':'Card title'} <input id="cf_title" type="text"></label></p>
+      <p class="sentence"><label>${L?'Eksportuj domeny (oddziel przecinkami; puste = wszystkie)':'Export domains (comma separated; empty = all)'} <input id="cf_domains" type="text"></label></p>
+      <p class="sentence"><label>${L?'Domyślny format':'Default format'} <select id="cf_default_format"><option value="csv">CSV</option><option value="json">JSON</option><option value="yaml">YAML</option></select></label><label>${L?'Encji na stronę':'Entities per page'} <input id="cf_page_size" type="number" min="1" max="1000" step="1"></label></p>
+      <p class="sentence"><label><input id="cf_show_attributes" type="checkbox"> ${L?'Dołączaj atrybuty do eksportu':'Include attributes in exports'}</label></p>
+      <p class="sentence"><label>${L?'Klucz lokalnych snapshotów':'Local snapshot storage key'} <input id="cf_storage_key" type="text"></label></p>
+      <p id="editorError" role="alert"></p>`;
+    const values={title:this._config.title??'Data Exporter',domains:Array.isArray(this._config.domains)?this._config.domains.join(', '):'',default_format:this._config.default_format??'csv',page_size:this._config.page_size??50,storage_key:this._config.storage_key??''};
+    for(const [key,value] of Object.entries(values))root.getElementById('cf_'+key).value=String(value);
+    root.getElementById('cf_show_attributes').checked=this._config.show_attributes!==false;
+    for(const key of [...Object.keys(values),'show_attributes'])root.getElementById('cf_'+key).addEventListener(key==='show_attributes'||key==='default_format'?'change':'input',event=>{
+      let value=key==='show_attributes'?event.target.checked:event.target.value,error='';
+      if(key==='page_size') {value=Number(value);if(!Number.isInteger(value)||value<1||value>1000)error=L?'Liczba encji na stronę musi być całkowita od 1 do 1000.':'Entities per page must be an integer from 1 to 1000.';}
+      if(key==='domains') {value=value.split(',').map(v=>v.trim()).filter(Boolean);if(value.some(v=>! /^[a-z_][a-z0-9_]*$/.test(v)))error=L?'Domeny: użyj małych liter, cyfr i podkreślenia, oddzielonych przecinkami.':'Domains: use lowercase letters, digits and underscores separated by commas.';value=value.length?value:null;}
+      if(key==='storage_key'&&value.length>128)error=L?'Klucz snapshotów może mieć maksymalnie 128 znaków.':'Snapshot storage key may have at most 128 characters.';
+      if(key==='default_format'&&!['csv','json','yaml'].includes(value))error=L?'Wybierz CSV, JSON lub YAML.':'Choose CSV, JSON or YAML.';
+      root.getElementById('editorError').textContent=error;event.target.setAttribute('aria-invalid',String(!!error));event.target.setAttribute('aria-describedby','editorError');if(error)return;
+      this._config={...this._config,[key]:value};this._dispatch();
+    });
+    if(focus){const node=root.getElementById(focus);node?.focus();if(node?.type==='text'&&start!==null)node.setSelectionRange(start,end);}
   }
-  connectedCallback() { this._render(); }
+  connectedCallback() {this._render();}
 }
 if (!customElements.get('ha-data-exporter-editor')) { customElements.define('ha-data-exporter-editor', HaDataExporterEditor); }
 

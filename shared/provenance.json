@@ -1,0 +1,17 @@
+{
+  "schema": 1,
+  "sources": {
+    "ha-tools-export.js": {
+      "sha256": "6cdf7a5308ad7c7828aac131ed42715257e22e7220894392ca9a9dc334379a6f",
+      "supplied_from": "ha-config-auditor/shared/ha-tools-export.js@4c693fa25fb5e9fb845e0a262bfa1002c950b100"
+    },
+    "ha-tools-ui.js": {
+      "sha256": "029c06206e55abad9aa09dfcf65bb13027ec24ce6a0bfacc45a938891b27254e",
+      "supplied_from": "ha-config-auditor/shared/ha-tools-ui.js@4c693fa25fb5e9fb845e0a262bfa1002c950b100"
+    }
+  },
+  "runtime_normalization": {
+    "ha-tools-export.js": "Remove only the export keyword of createExportDialog; preserve all other factory bytes.",
+    "ha-tools-ui.js": "Exact factory; omit only trailing Node test export comment/statement."
+  }
+}

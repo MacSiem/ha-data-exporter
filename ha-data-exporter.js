@@ -2,6 +2,375 @@
 (function() {
 'use strict';
 
+// BEGIN VENDORED ha-tools-export.js
+/**
+ * W6 export dialog. Pure ES module; vendor this factory INSIDE each consumer's
+ * own IIFE (remove only the `export` keyword). Never attach it to window.
+ * Construction is inert. open() appends only its own container to root.
+ *
+ * Required dependency injection:
+ * root: Element/ShadowRoot; getLanguage(): 'pl'|'en'; createUiV3: existing W4 factory.
+ * getContext(): {role,userId,connectionId,datasetId,revision,connected,canExport,
+ *                sourceConfirmed}. Identities/revision are nonempty scalar values;
+ * bump revision monotonically for source/filter/selection/identity changes,
+ * including a restored source; never reuse an old revision. Never return tokens or data.
+ * policy: {id,allowlistedFields:string[],neverInclude:[tokens,users,addresses,raw_config]}.
+ * formats: explicit subset of ['json','csv','txt']; defaults must be explicit valid choices.
+ * buildPayload({context,draft,policy,signal}): read-only, Promise or sync result:
+ * {serialized:string,confirmed:true,sourceConfirmed:true,status:'success'|'partial',
+ *  included:string[],excluded:string[],sourceLimit:string}.
+ * Included/Excluded/sourceLimit describe the REVIEWED CONSUMER policy and actual
+ * source limitations in the current language. The consumer MUST explicitly select
+ * allowed fields, exclude tokens/users/addresses/raw configuration under EVERY
+ * private opt-in, and sanitize CSV formula cells where applicable. A generic
+ * recursive export/redactor of arbitrary raw state/config is NOT a valid consumer.
+ * This factory cannot inspect or truthfully sanitize an unknown arbitrary schema.
+ * For partial reports the consumer also encodes the partial status, inclusion
+ * scope and source limitations IN its allowlisted file schema, not only UI text.
+ * performDownload({serialized,blob,filename,format,context,signal}): explicit Save
+ * only. Return {outcome:'initiated'|'saved'|'unknown'}; 'saved' requires actual
+ * adapter confirmation, never infer disk persistence from an anchor click.
+ * Optional clock(): monotonic milliseconds; setTimer(fn,ms), clearTimer(handle).
+ *
+ * Returned API: open({opener}), cancel(), contextChanged(), destroy(). Every open
+ * resets private consent. contextChanged() discards bytes/consent immediately;
+ * owner also calls cancel/destroy on disconnect. Save ALWAYS rechecks context.
+ * One preview on open, explicit Refresh thereafter; bounded 10s, no automatic
+ * retries/downloads/persistence. AbortSignal is advisory; late results are ignored.
+ */
+function createExportDialog(options) {
+  const { root, getContext, getLanguage, createUiV3, buildPayload, performDownload,
+    clock = () => globalThis.performance.now(), setTimer = (fn, ms) => globalThis.setTimeout(fn, ms),
+    clearTimer = id => globalThis.clearTimeout(id), defaultFormat, defaultFilename } = options || {};
+  const allowedFormats = ['json', 'csv', 'txt', 'yaml'];
+  const excludedCategories = ['tokens', 'users', 'addresses', 'raw_config'];
+  const strings = value => Array.isArray(value) && value.length > 0 && value.every(v => typeof v === 'string' && v.trim());
+  if (!root?.append || !root.ownerDocument || [getContext, getLanguage, createUiV3, buildPayload, performDownload, clock, setTimer, clearTimer].some(fn => typeof fn !== 'function')) {
+    throw new TypeError('root and injected getContext/getLanguage/createUiV3/buildPayload/performDownload/clock/timers are required');
+  }
+  const suppliedPolicy = options.policy;
+  if (!suppliedPolicy || typeof suppliedPolicy.id !== 'string' || !suppliedPolicy.id.trim() || !strings(suppliedPolicy.allowlistedFields) || !strings(suppliedPolicy.neverInclude) || excludedCategories.some(key => !suppliedPolicy.neverInclude.includes(key))) {
+    throw new TypeError('Explicit reviewed consumer policy with allowlistedFields and neverInclude is required');
+  }
+  const policy = Object.freeze({ id: suppliedPolicy.id, allowlistedFields: Object.freeze([...suppliedPolicy.allowlistedFields]), neverInclude: Object.freeze([...suppliedPolicy.neverInclude]) });
+  if (!strings(options.formats) || options.formats.some(f => !allowedFormats.includes(f)) || new Set(options.formats).size !== options.formats.length || !options.formats.includes(defaultFormat) || typeof defaultFilename !== 'string') {
+    throw new TypeError('Explicit formats/defaultFormat/defaultFilename are required');
+  }
+  const formats = Object.freeze([...options.formats]);
+  const doc = root.ownerDocument;
+  const mime = { json: 'application/json;charset=utf-8', csv: 'text/csv;charset=utf-8', txt: 'text/plain;charset=utf-8', yaml: 'application/yaml;charset=utf-8' };
+  const copy = {
+    en: { title: 'Export', filename: 'Filename', format: 'Format', private: 'Include reviewed private fields (this export only)', included: 'Included in the file', excluded: 'Excluded from the file', source: 'Source and limits', preview: 'Exact file content', save: 'Save', refresh: 'Refresh preview', cancel: 'Cancel', busy: 'Building preview… Save waits for confirmed bytes.', changed: 'Choices changed. Refresh preview before Save.', context: 'Source or access changed. Review the source and refresh preview.', unavailable: 'Source unavailable or unconfirmed. Reconnect or confirm the source, then refresh.', invalidFormat: 'Choose an allowed format: JSON, CSV, TXT or YAML as offered.', invalidName: 'Use a basename of 1–128 characters: no paths, control characters, reserved names or leading/trailing spaces.', extension: 'Filename must end with the selected extension. Edit the filename, then refresh.', timeout: 'Preview exceeded 10 seconds. Check the source and explicitly refresh.', buildError: 'Could not build a confirmed preview. Check the source and refresh.', unconfirmed: 'Bytes or source metadata are unconfirmed. Confirm the source and refresh.', noData: 'No confirmed file content. Select available data and refresh.', saving: 'Handing off the confirmed preview… Wait for the adapter result.', initiated: 'Download initiated. Saving to the filesystem is not confirmed. Refresh only for a new export intent.', saved: 'Save confirmed by the download adapter.', unknown: 'Download result unconfirmed. Check the previous attempt before explicitly refreshing for a new export intent.' },
+    pl: { title: 'Eksport', filename: 'Nazwa pliku', format: 'Format', private: 'Dołącz sprawdzone pola prywatne (tylko ten eksport)', included: 'W pliku jest', excluded: 'W pliku nie ma', source: 'Źródło i ograniczenia', preview: 'Dokładna zawartość pliku', save: 'Zapisz', refresh: 'Odśwież podgląd', cancel: 'Anuluj', busy: 'Przygotowywanie podglądu… Zapis wymaga potwierdzonej zawartości.', changed: 'Wybór zmieniony. Odśwież podgląd przed zapisem.', context: 'Źródło lub uprawnienia zmienione. Sprawdź źródło i odśwież podgląd.', unavailable: 'Źródło niedostępne lub niepotwierdzone. Połącz lub potwierdź źródło i odśwież.', invalidFormat: 'Wybierz dostępny format: JSON, CSV, TXT lub YAML z listy.', invalidName: 'Użyj nazwy pliku o długości 1–128 znaków: bez ścieżek, znaków sterujących, nazw zastrzeżonych i skrajnych spacji.', extension: 'Nazwa pliku musi mieć rozszerzenie wybranego formatu. Popraw nazwę i odśwież.', timeout: 'Podgląd przekroczył 10 sekund. Sprawdź źródło i jawnie odśwież.', buildError: 'Nie udało się przygotować potwierdzonego podglądu. Sprawdź źródło i odśwież.', unconfirmed: 'Zawartość lub opis źródła niepotwierdzony. Potwierdź źródło i odśwież.', noData: 'Brak potwierdzonej zawartości pliku. Wybierz dostępne dane i odśwież.', saving: 'Przekazywanie potwierdzonego podglądu… Poczekaj na wynik zapisu.', initiated: 'Pobieranie rozpoczęte. Zapis na dysku nie jest potwierdzony. Odśwież tylko dla nowej próby eksportu.', saved: 'Adapter pobierania potwierdził zapis.', unknown: 'Wynik pobierania niepotwierdzony. Sprawdź poprzednią próbę przed jawnym odświeżeniem dla nowego eksportu.' },
+  };
+  const css = `
+[data-ha-tools-export] { container-type:inline-size;min-width:0;max-width:100%;color:var(--primary-text-color,#222);font:inherit; }
+[data-ha-tools-export] * { box-sizing:border-box; }
+[data-ha-tools-export] [role=dialog] { width:100%;min-width:0;border:1px solid var(--divider-color,#aaa);border-radius:12px;background:var(--card-background-color,#fff);padding:16px; }
+[data-ha-tools-export] h2,[data-ha-tools-export] h3,[data-ha-tools-export] p,[data-ha-tools-export] li { overflow-wrap:anywhere;white-space:normal; }
+[data-ha-tools-export] h2 { margin:0 0 12px;font-size:1.25em; }
+[data-ha-tools-export] h3 { margin:12px 0 6px;font-size:1em; }
+[data-ha-tools-export] .ht-export-fields { display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px; }
+[data-ha-tools-export] label { display:flex;flex-direction:column;gap:4px;min-width:0;overflow-wrap:anywhere; }
+[data-ha-tools-export] .ht-export-private { flex-direction:row;align-items:center;min-height:44px;margin-top:12px; }
+[data-ha-tools-export] input:not([type=checkbox]),[data-ha-tools-export] select,[data-ha-tools-export] button { font:inherit;min-width:44px;min-height:44px;max-width:100%; }
+[data-ha-tools-export] input:not([type=checkbox]),[data-ha-tools-export] select { width:100%;color:inherit;background:var(--secondary-background-color,#f5f5f5);border:1px solid var(--divider-color,#aaa);border-radius:6px;padding:8px; }
+[data-ha-tools-export] input[type=checkbox] { width:24px;height:24px;flex:none;margin:10px; }
+[data-ha-tools-export] button { padding:8px 12px;white-space:normal;overflow-wrap:anywhere;cursor:pointer;border:1px solid var(--divider-color,#aaa);border-radius:6px;color:inherit;background:var(--secondary-background-color,#f5f5f5); }
+[data-ha-tools-export] :focus-visible { outline:3px solid var(--primary-color,#1769aa);outline-offset:2px; }
+[data-ha-tools-export] button:disabled { cursor:default;opacity:.6; }
+[data-ha-tools-export] .ht-export-actions { display:flex;flex-wrap:wrap;gap:8px;margin-top:16px; }
+[data-ha-tools-export] pre { max-width:100%;min-width:0;max-height:320px;overflow:auto;white-space:pre;margin:0;padding:12px;border:1px solid var(--divider-color,#aaa);background:var(--secondary-background-color,#f5f5f5); }
+[data-ha-tools-export] ul { padding-inline-start:22px;margin:0; }
+@container (max-width:499px) { [data-ha-tools-export] .ht-export-fields { grid-template-columns:minmax(0,1fr); } }
+@container (max-width:319px) { [data-ha-tools-export] [role=dialog] { padding:10px; } [data-ha-tools-export] .ht-export-actions button { flex:1 1 100%; } }
+`;
+  let container, nodes, L, ui, opener, alive = false, destroyed = false, serial = 0;
+  let pending = null, handoff = null, ready = null, observed = null;
+  const listeners = [];
+  const on = (target, event, handler, capture = false) => {
+    target.addEventListener(event, handler, capture);
+    listeners.push(() => target.removeEventListener(event, handler, capture));
+  };
+  const contextKeys = ['role', 'userId', 'connectionId', 'datasetId', 'revision'];
+  function readContext() {
+    try {
+      const value = getContext();
+      if (!value || contextKeys.some(k => !['string', 'number'].includes(typeof value[k]) || String(value[k]).trim() === '' || (typeof value[k] === 'number' && !Number.isFinite(value[k])))) return null;
+      return Object.freeze(Object.fromEntries([...contextKeys, 'connected', 'canExport', 'sourceConfirmed'].map(k => [k, value[k]])));
+    } catch { return null; }
+  }
+  const same = (a, b) => !!a && !!b && [...contextKeys, 'connected', 'canExport', 'sourceConfirmed'].every(k => a[k] === b[k]);
+  const available = c => !!c && c.connected === true && c.canExport === true && c.sourceConfirmed === true;
+  const draft = () => Object.freeze({ filename: nodes.filename.value, format: nodes.format.value, includePrivate: nodes.private.checked });
+  const sameDraft = (a, b) => a.filename === b.filename && a.format === b.format && a.includePrivate === b.includePrivate;
+  function validation(value) {
+    if (!formats.includes(value.format)) return 'invalidFormat';
+    const name = value.filename;
+    if (!name || [...name].length > 128 || name !== name.trim() || /[\p{Cc}\p{Cf}/\\<>:"|?*]/u.test(name) || /[. ]$/.test(name) || /^(con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³])(?:\.|$)/i.test(name) || /[. ]\./.test(name)) return 'invalidName';
+    if (!name.endsWith(`.${value.format}`) || name.length <= value.format.length + 1) return 'extension';
+    return null;
+  }
+  function status(code, message) {
+    if (!alive) return;
+    const result = ui.status(code); // exact existing W4 labels/icons/codes
+    nodes.status.className = `ht-result-state ht-result-state--${result.code}`;
+    nodes.status.dataset.resultState = result.code;
+    nodes.status.replaceChildren();
+    const icon = doc.createElement('span'); icon.setAttribute('aria-hidden', 'true'); icon.textContent = result.icon;
+    nodes.status.append(icon, doc.createTextNode(` ${result.label}`));
+    nodes.message.textContent = ` ${L[message]}`;
+    nodes.save.disabled = !ready || !!pending || !!handoff;
+    nodes.refresh.disabled = !!pending || !!handoff;
+  }
+  function stop(job) {
+    if (!job) return;
+    if (job.timer !== null) clearTimer(job.timer);
+    job.timer = null; job.controller.abort();
+  }
+  function discard(resetPrivate = false) {
+    serial++; stop(pending); pending = null; ready = null;
+    if (alive) {
+      nodes.preview.textContent = ''; nodes.included.replaceChildren(); nodes.excluded.replaceChildren(); nodes['source-limit'].textContent = '';
+      if (resetPrivate) nodes.private.checked = false;
+    }
+  }
+  function contextChanged() {
+    if (!alive) return;
+    observed = readContext(); discard(true);
+    // Once a handoff began we cannot retract a browser download. Ignore its late
+    // callback and retain the prohibition on a second write until it settles.
+    if (handoff) handoff.controller.abort();
+    status(root.isConnected && available(observed) ? 'unconfirmed' : 'no_data', 'context');
+  }
+  function validContext(original) {
+    const current = readContext();
+    if (!root.isConnected || !same(original, current) || !available(current)) { contextChanged(); return false; }
+    return true;
+  }
+  function changeDraft() {
+    if (!alive) return;
+    if (!same(observed, readContext())) { contextChanged(); return; }
+    discard();
+    const error = validation(draft()); status(error ? 'error' : 'not_checked', error || 'changed');
+  }
+  function fillList(node, items) {
+    node.replaceChildren(...items.map(text => { const li = doc.createElement('li'); li.textContent = text; return li; }));
+  }
+  async function refresh() {
+    if (!alive || pending || handoff) return;
+    const current = readContext();
+    if (!same(observed, current)) { observed = current; discard(true); }
+    const value = draft(), error = validation(value);
+    discard();
+    if (error) { status('error', error); return; }
+    if (!root.isConnected || !available(current)) { status(!root.isConnected || current?.connected === false ? 'no_data' : 'unconfirmed', 'unavailable'); return; }
+    observed = current;
+    const job = { id: serial, context: current, draft: value, started: clock(), controller: new globalThis.AbortController(), timer: null };
+    pending = job; status('not_checked', 'busy');
+    const timeout = () => {
+      if (!alive || pending !== job) return;
+      discard(); status('unconfirmed', 'timeout');
+    };
+    job.timer = setTimer(timeout, 10000);
+    try {
+      const payload = await buildPayload(Object.freeze({ context: current, draft: value, policy, signal: job.controller.signal }));
+      if (!alive || pending !== job || job.id !== serial) return;
+      if (clock() - job.started >= 10000) { timeout(); return; }
+      if (!validContext(current)) return;
+      clearTimer(job.timer); job.timer = null;
+      if (!sameDraft(value, draft())) { changeDraft(); return; }
+      const { serialized, confirmed, sourceConfirmed, status: resultState, included, excluded, sourceLimit } = payload || {};
+      if (resultState === 'no_data' || serialized === '') { pending = null; status('no_data', 'noData'); return; }
+      if (confirmed !== true || sourceConfirmed !== true || !['success', 'partial'].includes(resultState) || typeof serialized !== 'string' || !strings(included) || !strings(excluded) || typeof sourceLimit !== 'string' || !sourceLimit.trim()) {
+        pending = null; status('unconfirmed', 'unconfirmed'); return;
+      }
+      // Freeze the only serialized bytes and build the only Blob NOW; Save never
+      // re-runs serialization or builds a second payload from potentially newer data.
+      ready = Object.freeze({ serialized, blob: new globalThis.Blob([serialized], { type: mime[value.format] }), context: current, draft: value });
+      nodes.preview.textContent = ready.serialized;
+      fillList(nodes.included, [...included]); fillList(nodes.excluded, [...excluded]);
+      nodes['source-limit'].textContent = sourceLimit;
+      pending = null; status(resultState, 'changed'); nodes.message.textContent = '';
+    } catch {
+      if (!alive || pending !== job || job.id !== serial) return;
+      if (clock() - job.started >= 10000) { timeout(); return; }
+      if (!validContext(current)) return;
+      discard(); status('error', 'buildError');
+    }
+  }
+  async function save() {
+    if (!alive || !ready || pending || handoff) return;
+    if (!validContext(ready.context)) return;
+    const value = draft(), error = validation(value);
+    if (error || !sameDraft(value, ready.draft) || nodes.preview.textContent !== ready.serialized) {
+      discard(); status(error ? 'error' : 'unconfirmed', error || 'changed'); return;
+    }
+    const snapshot = ready; ready = null; // consume intent BEFORE invoking adapter
+    const job = { id: serial, context: snapshot.context, controller: new globalThis.AbortController() };
+    handoff = job; status('unconfirmed', 'saving');
+    // choices cannot initiate another preview while the adapter result is unknown
+    for (const key of ['filename', 'format', 'private']) nodes[key].disabled = true;
+    try {
+      const result = await performDownload(Object.freeze({ serialized: snapshot.serialized, blob: snapshot.blob, filename: snapshot.draft.filename, format: snapshot.draft.format, context: snapshot.context, signal: job.controller.signal }));
+      if (!alive || handoff !== job || job.id !== serial || !validContext(job.context)) return;
+      status(result?.outcome === 'saved' ? 'success' : 'unconfirmed', result?.outcome === 'saved' ? 'saved' : result?.outcome === 'initiated' ? 'initiated' : 'unknown');
+    } catch {
+      if (alive && handoff === job && job.id === serial && validContext(job.context)) status('unconfirmed', 'unknown');
+    } finally {
+      if (handoff === job) {
+        handoff = null;
+        if (alive) {
+          for (const key of ['filename', 'format', 'private']) nodes[key].disabled = false;
+          nodes.refresh.disabled = false; nodes.save.disabled = true;
+          if (job.id !== serial) status('unconfirmed', 'unknown');
+        }
+      }
+    }
+  }
+  function focusable() {
+    return Array.from(nodes.dialog.querySelectorAll('input,select,button,[tabindex="0"]')).filter(el => !el.disabled);
+  }
+  function keydown(event) {
+    if (!alive) return;
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel(); }
+    if (event.key === 'Tab') {
+      const items = focusable(), first = items[0], last = items.at(-1);
+      const active = nodes.dialog.getRootNode().activeElement || root.activeElement || doc.activeElement;
+      if (event.shiftKey && (active === first || !nodes.dialog.contains(active))) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && (active === last || !nodes.dialog.contains(active))) { event.preventDefault(); first?.focus(); }
+    }
+  }
+  function cancel() {
+    if (!alive) return;
+    discard(true); if (handoff) handoff.controller.abort();
+    alive = false; listeners.splice(0).forEach(off => off()); container.remove();
+    container = null; nodes = null; observed = null;
+    // A pending handoff remains latched until settled: reopening never repeats it.
+    if (opener?.isConnected && typeof opener.focus === 'function') opener.focus();
+    opener = null;
+  }
+  function open({ opener: target } = {}) {
+    if (destroyed) throw new Error('Export dialog destroyed');
+    if (alive) return;
+    const language = String(getLanguage());
+    L = copy[language.startsWith('pl') ? 'pl' : 'en'];
+    ui = createUiV3({ language });
+    opener = target || root.activeElement || doc.activeElement;
+    container = doc.createElement('div'); container.setAttribute('data-ha-tools-export', '');
+    // The own shadow boundary contains CSS and local IDs; adjacent W4 status
+    // elements retain their existing styling. Consumers can query this open root.
+    const shadow = container.attachShadow({ mode: 'open' });
+    if (root.host?.classList.contains('bento-dark')) container.classList.add('bento-dark');
+    const style = doc.createElement('style'); style.textContent = ':host{display:block;min-width:0;max-width:100%;}' + css + '\n' + ui.css;
+    shadow.append(style);
+    const shell = doc.createElement('div'); shell.setAttribute('data-ha-tools-export', ''); shadow.append(shell);
+    nodes = {};
+    const make = (tag, key, parent, text) => { const node = doc.createElement(tag); if (key) { node.dataset.export = key; nodes[key] = node; } if (text) node.textContent = text; parent.append(node); return node; };
+    const dialog = make('section', 'dialog', shell); dialog.setAttribute('role', 'dialog'); dialog.setAttribute('aria-modal', 'true');
+    const title = make('h2', 'title', dialog, L.title);
+    // Locally unique IDs, no random or global counters/persistent state.
+    const prefix = `ht-export-${String(clock()).replace(/\W/g, '')}`;
+    title.id = prefix + '-title'; dialog.setAttribute('aria-labelledby', title.id);
+    const fields = make('div', null, dialog); fields.className = 'ht-export-fields';
+    const filenameLabel = make('label', null, fields); make('span', null, filenameLabel, L.filename);
+    const filename = make('input', 'filename', filenameLabel); filename.type = 'text'; filename.value = defaultFilename; filename.autocomplete = 'off';
+    const formatLabel = make('label', null, fields); make('span', null, formatLabel, L.format);
+    const format = make('select', 'format', formatLabel);
+    formats.forEach(value => { const option = make('option', null, format, value.toUpperCase()); option.value = value; }); format.value = defaultFormat;
+    const privateLabel = make('label', null, dialog); privateLabel.className = 'ht-export-private';
+    const privateInput = make('input', 'private', privateLabel); privateInput.type = 'checkbox'; privateInput.checked = false; make('span', null, privateLabel, L.private);
+    const statusLine = make('p', null, dialog); statusLine.setAttribute('role', 'status'); statusLine.setAttribute('aria-live', 'polite');
+    make('span', 'status', statusLine); make('span', 'message', statusLine);
+    for (const key of ['included', 'excluded']) { make('h3', null, dialog, L[key]); make('ul', key, dialog); }
+    make('h3', null, dialog, L.source); make('p', 'source-limit', dialog);
+    const previewHeading = make('h3', null, dialog, L.preview); previewHeading.id = prefix + '-preview';
+    const preview = make('pre', 'preview', dialog); preview.tabIndex = 0; preview.setAttribute('aria-labelledby', previewHeading.id);
+    const actions = make('div', null, dialog); actions.className = 'ht-export-actions';
+    for (const key of ['refresh', 'save', 'cancel']) { const button = make('button', key, actions, L[key]); button.type = 'button'; }
+    root.append(container); alive = true; observed = readContext();
+    for (const [key, event] of [['filename', 'input'], ['format', 'change'], ['private', 'change']]) on(nodes[key], event, changeDraft);
+    on(nodes.refresh, 'click', refresh); on(nodes.save, 'click', save); on(nodes.cancel, 'click', cancel);
+    on(doc, 'keydown', keydown, true);
+    on(doc, 'focusin', event => {
+      if (alive && !event.composedPath().includes(nodes.dialog)) focusable()[0]?.focus();
+    }, true);
+    // The consumer supplies exact opener even when its shadow DOM hides activeElement.
+    filename.focus();
+    if (handoff) {
+      for (const key of ['filename', 'format', 'private']) nodes[key].disabled = true;
+      preview.focus();
+      status('unconfirmed', 'saving');
+    } else { status('not_checked', 'changed'); void refresh(); }
+  }
+  function destroy() { cancel(); destroyed = true; }
+  return Object.freeze({ open, cancel, contextChanged, destroy });
+}
+// END VENDORED ha-tools-export.js
+
+// BEGIN VENDORED ha-tools-ui.js
+// HA Tools v3: vendored inside each consumer's own closure, never a window API.
+function createUiV3({ language = 'en' } = {}) {
+  const pl = String(language).startsWith('pl');
+  const states = {
+    success: ['Success', 'Sukces', '✓'],
+    partial: ['Partial', 'Częściowo', '½'],
+    unconfirmed: ['Unconfirmed', 'Niepotwierdzony', '?'],
+    error: ['Error', 'Błąd', '✕'],
+    not_checked: ['Not checked', 'Nie sprawdzono', '–'],
+    no_data: ['No data', 'Brak danych', '∅'],
+  };
+  const status = (value) => {
+    const code = typeof value === 'string' && Object.hasOwn(states, value) ? value : 'not_checked';
+    const row = states[code];
+    return { code, label: row[pl ? 1 : 0], icon: row[2], countsAsSuccess: code === 'success' };
+  };
+  const statusHtml = (value) => {
+    const result = status(value);
+    return `<span class="ht-result-state ht-result-state--${result.code}" data-result-state="${result.code}"><span aria-hidden="true">${result.icon}</span> ${result.label}</span>`;
+  };
+  const css = `
+.ht-result-state { display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border:1px solid currentColor;border-radius:6px;font-size:12px;line-height:1.4;white-space:normal; }
+.ht-result-state--success { color:#237b3d;background:rgba(35,123,61,.10); }
+.ht-result-state--partial { color:#966400;background:rgba(150,100,0,.10); }
+.ht-result-state--unconfirmed { color:#ad5200;background:rgba(173,82,0,.10); }
+.ht-result-state--error { color:#c32b2b;background:rgba(195,43,43,.10); }
+.ht-result-state--not_checked,.ht-result-state--no_data { color:var(--secondary-text-color,#666);background:transparent; }
+.ht-result-state--no_data { border-style:dashed; }
+:host(.bento-dark) .ht-result-state--success { color:#81cf99; }
+:host(.bento-dark) .ht-result-state--partial { color:#efd080; }
+:host(.bento-dark) .ht-result-state--unconfirmed { color:#ffb97b; }
+:host(.bento-dark) .ht-result-state--error { color:#ff9999; }
+`;
+  return { status, statusHtml, css };
+}
+// END VENDORED ha-tools-ui.js
+
+// Reviewed consumer schema. New fields require an explicit review and test.
+const DATA_NUMERIC_DOMAINS = new Set(['sensor', 'number', 'input_number', 'counter']);
+const DATA_STATE_ENUMS = Object.freeze({
+  binary_sensor: ['on', 'off'], switch: ['on', 'off'], input_boolean: ['on', 'off'],
+  light: ['on', 'off'], fan: ['on', 'off'], lock: ['locked', 'unlocked', 'locking', 'unlocking', 'jammed'],
+  cover: ['open', 'closed', 'opening', 'closing'], climate: ['off', 'heat', 'cool', 'auto', 'heat_cool', 'dry', 'fan_only'],
+  vacuum: ['cleaning', 'docked', 'idle', 'paused', 'returning', 'error'],
+  media_player: ['off', 'on', 'idle', 'playing', 'paused', 'standby']
+});
+const DATA_NUMERIC_ATTRIBUTES = Object.freeze(['temperature', 'current_temperature', 'target_temp_high', 'target_temp_low', 'humidity', 'current_humidity', 'brightness', 'color_temp', 'color_temp_kelvin', 'battery_level', 'current_position', 'current_tilt_position', 'percentage', 'power', 'energy', 'voltage', 'current', 'pressure', 'illuminance', 'min', 'max', 'step', 'supported_features']);
+const DATA_BOOLEAN_ATTRIBUTES = Object.freeze(['assumed_state', 'restored']);
+const DATA_ATTRIBUTE_ENUMS = Object.freeze({
+  unit_of_measurement: ['°C', '°F', 'K', '%', 'W', 'kW', 'Wh', 'kWh', 'V', 'mV', 'A', 'mA', 'Hz', 'Pa', 'hPa', 'kPa', 'bar', 'psi', 'lx', 'lm', 'm', 'cm', 'mm', 'km', 'm²', 'm³', 'L', 'mL', 'l', 's', 'min', 'h', 'd', 'g', 'kg', 'mg', 'µg/m³', 'mg/m³', 'ppm', 'ppb', 'dB', 'dBm', 'B', 'kB', 'MB', 'GB', 'bit/s', 'kbit/s', 'Mbit/s', 'm/s', 'km/h', 'mph', 'mm/h', 'mm/d', 'm³/h', 'L/min', 'rpm', '°'],
+  device_class: ['temperature', 'humidity', 'battery', 'power', 'energy', 'voltage', 'current', 'pressure', 'illuminance', 'duration', 'distance', 'speed', 'volume', 'volume_flow_rate', 'water', 'weight', 'carbon_dioxide', 'carbon_monoxide', 'pm1', 'pm10', 'pm25', 'signal_strength', 'frequency', 'data_size', 'data_rate', 'monetary', 'timestamp', 'enum', 'apparent_power', 'reactive_power', 'power_factor', 'energy_storage', 'gas', 'atmospheric_pressure', 'sound_pressure', 'precipitation', 'precipitation_intensity', 'absolute_humidity', 'aqi', 'volatile_organic_compounds', 'volatile_organic_compounds_parts', 'battery_charging', 'cold', 'connectivity', 'door', 'garage_door', 'heat', 'light', 'lock', 'moisture', 'motion', 'moving', 'occupancy', 'opening', 'plug', 'power', 'presence', 'problem', 'running', 'safety', 'smoke', 'sound', 'tamper', 'update', 'vibration', 'window'],
+  state_class: ['measurement', 'total', 'total_increasing'], hvac_action: ['off', 'idle', 'heating', 'cooling', 'drying', 'fan'],
+  color_mode: ['onoff', 'brightness', 'color_temp', 'hs', 'xy', 'rgb', 'rgbw', 'rgbww', 'white']
+});
+const DATA_EXPORT_POLICY = Object.freeze({
+  id: 'ha-data-exporter-reviewed-v1',
+  allowlistedFields: ['entity_id', 'friendly_name', 'state', 'domain', 'last_changed', 'device_id', 'device_name', 'area_id', 'area_name', 'change', 'before_state', 'after_state', 'before_timestamp', 'after_timestamp', 'source',
+    ...DATA_NUMERIC_ATTRIBUTES.map(key => `attributes.${key}`), ...DATA_BOOLEAN_ATTRIBUTES.map(key => `attributes.${key}`), ...Object.keys(DATA_ATTRIBUTE_ENUMS).map(key => `attributes.${key}`)],
+  neverInclude: ['tokens', 'users', 'addresses', 'raw_config']
+});
+
+
 // Component-local XSS protection: never reads from or publishes a global helper.
 const _esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]);
 
@@ -510,11 +879,11 @@ pre {
 const _LOCAL_INTRO_KEY = 'ha-intro-dismissed-ha-data-exporter';
 const _LOCAL_INTRO = {
   headline: "Browse, filter, and export Home Assistant entity data.",
-  steps: ["Filter by domain or search entities live.","Take a snapshot or export selection to CSV / JSON.","Privacy warning before downloading attributes with sensitive data."]
+  steps: ["Filter by domain or search entities live.","Take a snapshot or export selection to CSV / JSON.","Review exact file content and private fields before saving."]
 };
 const _LOCAL_INTRO_PL = {
   headline: 'Przeglądaj, filtruj i eksportuj dane encji Home Assistant.',
-  steps: ['Filtruj według domeny lub wyszukuj encje na bieżąco.', 'Zrób snapshot lub eksportuj zaznaczone encje do CSV / JSON.', 'Przed pobraniem atrybutów z danymi wrażliwymi pojawia się ostrzeżenie o prywatności.']
+  steps: ['Filtruj według domeny lub wyszukuj encje na bieżąco.', 'Zrób snapshot lub eksportuj zaznaczone encje do CSV / JSON.', 'Sprawdź dokładną zawartość pliku i pola prywatne przed zapisem.']
 };
 const _LOCAL_SUPPORT_KEY = 'ha-data-exporter-support-dismissed';
 const _LOCAL_DONATE_HTML = '<div class="donate-section" data-source="own-card" style="margin:8px 0 0;padding:4px 0;background:none;border:0;box-shadow:none;min-height:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex-direction:row;justify-content:flex-start;text-align:left"><a href="https://buymeacoffee.com/macsiem" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--secondary-text-color,#64748b);font-weight:400;text-decoration:underline">Optional support for HA Tools</a><button type="button" class="support-dismiss" aria-label="Dismiss support link" style="margin-left:auto;padding:2px 6px;min-height:0;line-height:1;border:0;background:none;color:var(--secondary-text-color,#64748b);cursor:pointer">×</button></div>';
@@ -589,6 +958,14 @@ class HADataExporter extends HTMLElement {
     this._pageSize = 15;
     this._hass = null;
     this._identityEpoch = 0;
+    this._exportRevision = 0;
+    this._exportSignature = null;
+    this._exportHandles = new WeakMap();
+    this._exportHandleSequence = 0;
+    this._exportDialog = null;
+    this._exportMode = 'all';
+    this._exportConnection = null;
+    this._exportConnectionListener = null;
     this._config = {};
     this._selectedEntities = new Set();
     this._filterDomain = 'all';
@@ -613,6 +990,10 @@ class HADataExporter extends HTMLElement {
     this._snapshotSettings = { enabled: false, interval: 60, maxSnapshots: 50 };
     this._loadSnapshotSettings();
     this._loadSnapshots();
+    for (const eventName of ['input', 'change', 'click']) this.shadowRoot.addEventListener(eventName, event => {
+      if (event.composedPath().some(node => node?.hasAttribute?.('data-ha-tools-export'))) return;
+      this._syncExportContext();
+    });
   }
 
   // --- Snapshot persistence ---
@@ -707,7 +1088,15 @@ class HADataExporter extends HTMLElement {
     if (el) el.textContent = this._snapshots.length + ' ' + this._t.savedSnapshots;
   }
 
+  connectedCallback() {
+    this._bindExportConnection(this._hass?.connection);
+    this._syncExportContext();
+  }
+
   disconnectedCallback() {
+    this._destroyExportDialog();
+    this._unbindExportConnection();
+    this._syncExportContext();
     if (this._renderTimer) clearTimeout(this._renderTimer);
     this._renderTimer = null;
     this._renderScheduled = false;
@@ -752,6 +1141,9 @@ class HADataExporter extends HTMLElement {
     }
     if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';
     this._hass = hass;
+    this._bindExportConnection(hass?.connection);
+    this._syncExportContext();
+    if (!this._exportConnected()) this._exportDialog?.cancel();
     if (!hass) {
       this._stopAutoSnapshot();
       this.shadowRoot.replaceChildren();
@@ -1033,6 +1425,8 @@ class HADataExporter extends HTMLElement {
   }
 
   _render() {
+    this._destroyExportDialog();
+    this._syncExportContext();
     if (!this._hass) return;
     const L = this._lang === 'pl';
     const format = this._config.default_format;
@@ -1906,6 +2300,7 @@ canvas {
     const includeAttrs = this.shadowRoot.getElementById('includeAttrs');
     includeAttrs.addEventListener('change', (e) => {
       this._includeAttrsInExport = e.target.checked;
+      this._syncExportContext();
     });
 
     exportBtn.addEventListener('click', () => this._export('selected'));
@@ -1915,6 +2310,7 @@ canvas {
   _currentPage = 0;
 
   _updateEntities() {
+    this._syncExportContext();
     const domainFilter = this.shadowRoot.getElementById('domainFilter');
     if (!domainFilter) return;
     const entities = this._getFilteredEntities();
@@ -2094,6 +2490,7 @@ canvas {
   }
 
   _updateStats() {
+    this._syncExportContext();
     const exportBtn = this.shadowRoot.getElementById('exportBtn');
     if (!exportBtn) return;
     const count = this._getSelectedEntities().length;
@@ -2144,60 +2541,247 @@ canvas {
     });
   }
 
-  async _export(mode, preview = false) {
-    const identityEpoch = this._identityEpoch;
+  // Context carries opaque handles only. The private fingerprint is never exported.
+  _exportHandle(value) {
+    if (!value || (typeof value !== 'object' && typeof value !== 'function')) return 'none';
+    if (!this._exportHandles.has(value)) this._exportHandles.set(value, `source-${++this._exportHandleSequence}`);
+    return this._exportHandles.get(value);
+  }
+
+  _exportConnected() {
+    return !!this._hass && !!this._hass.connection && this._hass.connection.connected !== false
+      && this._hass.connected !== false && this._hass.offline !== true && this.isConnected;
+  }
+
+  _syncExportContext() {
+    const map = value => value ? Array.from(value.entries()) : null;
+    const signature = JSON.stringify([
+      this._identityEpoch, this._exportHandle(this._hass?.connection), this._exportConnected(),
+      this._hass?.user?.id ?? null, this._hass?.user?.is_admin === true, this._hass?.user?.is_owner === true,
+      this._lang, this._config, this._hass?.states ?? null,
+      this._registryStatus, map(this._registryMetadata?.entities), map(this._registryMetadata?.devices), map(this._registryMetadata?.areas),
+      this._filterDomain, this._filterSearch, this._filterArea, this._filterDevice,
+      [...this._selectedEntities].sort(), this._sortBy, this._sortAsc, this._exportColumns,
+      this._includeAttrsInExport, this._comparison, this._snapshotChoices(),
+      this.shadowRoot.getElementById('formatSelect')?.value ?? this._config.default_format,
+      this._exportMode
+    ]);
+    if (signature !== this._exportSignature) {
+      this._exportSignature = signature;
+      this._exportRevision++;
+      this._exportDialog?.contextChanged();
+    }
+  }
+
+  _getExportContext() {
+    this._syncExportContext();
+    // States already supplied to this card are an actual source, including for
+    // household users. No claim about access to an unrequested registry is made.
+    const known = !!this._hass?.states && typeof this._hass.states === 'object';
+    return {
+      role: `role-${this._identityEpoch}`, userId: `user-${this._identityEpoch}`,
+      connectionId: this._exportHandle(this._hass?.connection), datasetId: `dataset-${this._identityEpoch}`,
+      revision: this._exportRevision, connected: this._exportConnected(), canExport: known,
+      sourceConfirmed: known
+    };
+  }
+
+  _bindExportConnection(connection) {
+    if (this._exportConnection === connection && this._exportConnectionListener) return;
+    this._unbindExportConnection();
+    if (!connection?.addEventListener || !connection?.removeEventListener) return;
+    this._exportConnection = connection;
+    this._exportConnectionListener = () => {
+      // Real HA Connection changes its connected flag before emitting these events.
+      this._syncExportContext();
+      if (!this._exportConnected()) this._exportDialog?.cancel();
+    };
+    for (const type of ['ready', 'disconnected']) connection.addEventListener(type, this._exportConnectionListener);
+  }
+
+  _unbindExportConnection() {
+    if (this._exportConnectionListener) for (const type of ['ready', 'disconnected'])
+      this._exportConnection?.removeEventListener(type, this._exportConnectionListener);
+    this._exportConnection = null;
+    this._exportConnectionListener = null;
+  }
+
+  _destroyExportDialog() {
+    this._exportDialog?.destroy();
+    this._exportDialog = null;
+  }
+
+  _export(mode) {
+    if (!['all', 'selected', 'diff'].includes(mode)) return;
     if (mode === 'diff' && (!this._comparison.every(i => i !== null && this._snapshotChoices()[i]) || this._comparison[0] === this._comparison[1])) return;
-    const format = this.shadowRoot.getElementById('formatSelect').value;
-    const entities = this._getFilteredEntities();
-    let data;
+    this._destroyExportDialog();
+    this._exportMode = mode;
+    this._syncExportContext();
+    const chosen = this.shadowRoot.getElementById('formatSelect')?.value;
+    const format = ['json', 'csv', 'yaml'].includes(chosen) ? chosen : 'csv';
+    const opener = this.shadowRoot.activeElement || this.shadowRoot.getElementById(mode === 'selected' ? 'exportBtn' : mode === 'diff' ? 'exportDiff' : 'exportAllBtn');
+    this._exportDialog = createExportDialog({
+      root: this.shadowRoot, createUiV3,
+      getLanguage: () => this._lang,
+      getContext: () => this._getExportContext(),
+      formats: ['json', 'csv', 'yaml'], defaultFormat: format,
+      defaultFilename: `ha-export-${new Date().toISOString().slice(0, 10)}.${format}`,
+      policy: DATA_EXPORT_POLICY,
+      buildPayload: request => this._buildReviewedExport(mode, request),
+      performDownload: ({ blob, filename, signal }) => {
+        if (signal.aborted || !this._exportConnected()) return { outcome: 'unknown' };
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url; anchor.download = filename;
+        try { anchor.click(); }
+        finally { setTimeout(() => URL.revokeObjectURL(url), 0); }
+        return { outcome: 'initiated' };
+      }
+    });
+    this._exportDialog.open({ opener });
+  }
 
-    if (mode === 'selected') {
-      data = this._getSelectedEntities();
-    } else {
-      data = entities;
+  _safeExportTimestamp(value) {
+    return typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?(?:Z|[+-]\d\d:\d\d)$/.test(value)
+      && Number.isFinite(Date.parse(value)) ? value : null;
+  }
+
+  _safeExportText(value, identifier = false) {
+    if (typeof value !== 'string' || !value || value.length > 96 || value !== value.trim()) return null;
+    // Reviewed labels/IDs only, with exact danger categories rejected in both
+    // modes: URLs, email/IP/MAC/postal addresses, credentials, controls/formulas.
+    const words = value.replace(/[_.-]/g, ' ');
+    if (/[\p{Cc}\p{Cf}]/u.test(value) || /^[\s]*[=+\-@]/.test(value)
+      || /(?:https?:|wss?:|ftp:|www\.|@|\b(?:\d{1,3}\.){3}\d{1,3}\b|(?:[\da-f]{2}:){5}[\da-f]{2}|[\da-f]{1,4}:[\da-f:]{2,}|\b[\da-f]{4}(?:\.[\da-f]{4}){2}\b|\b\d{2}-\d{3}\b)/i.test(value)
+      || /\b(?:token|password|passwd|secret|authorization|bearer|api[_ -]?key|access[_ -]?key|raw[_ -]?config)\b/i.test(words)
+      || /\b\d+\s+.*\b(?:street|st\.?|road|rd\.?|avenue|ave\.?|lane|ln\.?|drive|dr\.?|ulica|ul\.?|aleja|al\.?)\b/i.test(words)
+      || (!identifier && (/^\d+\s/.test(value) || /\b(?:ulica|ul\.|aleja|al\.)\s/i.test(value)))
+      || /(?:eyJ[A-Za-z0-9_-]{12,}|[A-Za-z0-9_-]{40,})/.test(value)) return null;
+    return (identifier ? /^[a-z0-9][a-z0-9_.-]*$/i : /^[\p{L}\p{N}][\p{L}\p{N} _().-]*$/u).test(value) ? value : null;
+  }
+
+  _safeExportState(value, domain) {
+    if (value === 'unknown' || value === 'unavailable' || typeof value === 'boolean') return value;
+    if (DATA_NUMERIC_DOMAINS.has(domain)) {
+      if (typeof value === 'number' && Number.isFinite(value)) return value;
+      if (typeof value === 'string' && /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(value) && Number.isFinite(Number(value))) return Number(value);
     }
+    return Object.hasOwn(DATA_STATE_ENUMS, domain) && DATA_STATE_ENUMS[domain].includes(value) ? value : null;
+  }
 
-    if (mode === 'diff') data = this._comparisonFrame();
-
-    // Privacy: warn before exporting full state/attributes (entity names, locations,
-    // sensor values, optional attributes can contain sensitive data).
-    const PL = (this._lang === 'pl') || (this._hass?.language || '').startsWith('pl');
-    const includeAttrs = mode !== 'diff' && !!this._includeAttrsInExport;
-    const warn = PL
-      ? `Eksportowany plik (${format.toUpperCase()}) będzie zawierał ${data.length} encji wraz ze stanami${includeAttrs ? ' i atrybutami (mogą zawierać wrażliwe dane)' : ''}.\n\nNie wysyłaj go publicznie ani do zewnętrznych usług bez świadomej zgody.\n\nKontynuować?`
-      : `The export (${format.toUpperCase()}) will contain ${data.length} entities with states${includeAttrs ? ' and attributes (may contain sensitive data)' : ''}.\n\nDo not share publicly or with third-party services without informed consent.\n\nContinue?`;
-    if (!confirm(warn)) return;
-
-    let metadata;
-    try {
-      metadata = mode === 'diff' ? null : await this._ensureRegistryMetadata();
-      if (mode !== 'diff' && !metadata) throw new Error('Registry metadata unavailable');
-    } catch (error) {
-      if (identityEpoch !== this._identityEpoch || !this._hass) return;
-      console.error('[ha-data-exporter] Registry lookup failed:', error);
-      alert(PL ? 'Nie udało się pobrać rejestrów encji, urządzeń i obszarów. Eksport przerwany.'
-        : 'Could not load entity, device and area registries. Export cancelled.');
-      return;
+  _safeExportAttributes(attributes) {
+    const result = {};
+    if (!this._includeAttrsInExport || !attributes || typeof attributes !== 'object') return result;
+    for (const key of DATA_NUMERIC_ATTRIBUTES) {
+      // Numeric attribute strings are not converted: the schema requires actual
+      // finite numbers, avoiding arbitrary freeform strings/embedded credentials.
+      if (typeof attributes[key] === 'number' && Number.isFinite(attributes[key])) result[key] = attributes[key];
     }
-    if (identityEpoch !== this._identityEpoch || !this._hass) return;
-    const exportData = this._exportFrame(mode, metadata, data);
+    for (const key of DATA_BOOLEAN_ATTRIBUTES) if (typeof attributes[key] === 'boolean') result[key] = attributes[key];
+    for (const [key, choices] of Object.entries(DATA_ATTRIBUTE_ENUMS)) if (choices.includes(attributes[key])) result[key] = attributes[key];
+    return result;
+  }
 
-    const content = this._serializeFrame(exportData, format);
-    if (preview) {
-      this.shadowRoot.getElementById('exportPreview').textContent = content;
-      this.shadowRoot.getElementById('previewScope').textContent = (PL ? 'Podgląd: ' : 'Preview: ') + (mode === 'selected' ? (PL ? 'zaznaczone, także poza filtrami' : 'selected, including outside filters') : mode === 'diff' ? (PL ? 'zmienione stany snapshotów lokalnych' : 'changed browser-local snapshot states') : (PL ? 'wszystkie w aktualnych filtrach' : 'all within current filters')) + ` (${exportData.length})`;
-      return;
+  _credentialEntity(id, label) {
+    const words = `${id || ''} ${label || ''}`.replace(/[_.-]/g, ' ');
+    return /\b(?:token|password|passwd|secret|authorization|bearer|api ?key|access ?key|raw ?config|user ?id|username|email|ip ?address|mac ?address)\b/i.test(words);
+  }
+
+  _reviewedExportRows(mode, includePrivate) {
+    const identity = (id, i) => includePrivate ? this._safeExportText(id, true) || `row-${i + 1}` : `row-${i + 1}`;
+    if (mode === 'diff') return this._comparisonFrame().map((row, i) => {
+      const domain = row.entity_id.split('.')[0];
+      return {
+        entity_id: identity(row.entity_id, i), domain: /^[a-z_]{1,32}$/.test(domain) ? domain : null,
+        change: row.change,
+        before_state: row.before_state === null ? null : (this._credentialEntity(row.entity_id) ? null : this._safeExportState(row.before_state, domain)),
+        after_state: row.after_state === null ? null : (this._credentialEntity(row.entity_id) ? null : this._safeExportState(row.after_state, domain)),
+        before_timestamp: this._safeExportTimestamp(row.before_timestamp), after_timestamp: this._safeExportTimestamp(row.after_timestamp),
+        source: 'browser-local snapshot'
+      };
+    });
+    const entities = mode === 'selected' ? this._getSelectedEntities() : this._getFilteredEntities();
+    const metadata = this._registryMetadata;
+    const rows = entities.map((e, i) => {
+      const entry = metadata?.entities.get(e.entity_id);
+      const device = metadata?.devices.get(entry?.device_id);
+      const areaId = entry?.area_id || device?.area_id || null;
+      const area = metadata?.areas.get(areaId);
+      const row = {
+        entity_id: identity(e.entity_id, i), friendly_name: includePrivate ? this._safeExportText(e.name) : null,
+        state: this._credentialEntity(e.entity_id, e.name) ? null : this._safeExportState(e.state, e.domain), domain: /^[a-z_]{1,32}$/.test(e.domain) ? e.domain : null,
+        last_changed: this._safeExportTimestamp(e.last_changed),
+        device_id: includePrivate ? this._safeExportText(entry?.device_id, true) : null,
+        device_name: includePrivate ? this._safeExportText(device?.name_by_user || device?.name) : null,
+        area_id: includePrivate ? this._safeExportText(areaId, true) : null,
+        area_name: includePrivate ? this._safeExportText(area?.name) : null
+      };
+      if (this._includeAttrsInExport) row.attributes = this._credentialEntity(e.entity_id, e.name) ? {} : this._safeExportAttributes(e.attributes);
+      return row;
+    });
+    // Projection keeps every user's selected column and its order. Disallowed
+    // attributes have null cells, never arbitrary raw data, including collisions.
+    const allowed = new Set(DATA_EXPORT_POLICY.allowlistedFields);
+    return this._exportColumns === null ? rows : rows.map(row => Object.fromEntries(this._exportColumns.map((key, i) => [allowed.has(key) ? key : `excluded-column-${i + 1}`,
+      !allowed.has(key) ? null : key.startsWith('attributes.') ? row.attributes?.[key.slice(11)] ?? null : row[key] ?? null
+    ])));
+  }
+
+  _buildReviewedExport(mode, { draft, signal }) {
+    if (signal.aborted) throw new Error('cancelled');
+    const PL = this._lang === 'pl';
+    const rows = this._reviewedExportRows(mode, draft.includePrivate);
+    const partial = mode !== 'diff' && !this._registryMetadata;
+    const scope = mode === 'selected' ? (PL ? 'zaznaczone, także poza filtrami' : 'selected, including outside filters')
+      : mode === 'diff' ? (PL ? 'zmiany stanów snapshotów lokalnych przeglądarki' : 'browser-local snapshot state changes')
+      : (PL ? 'wszystkie w aktualnych filtrach' : 'all within current filters');
+    const included = [PL ? 'Anonimowe identyfikatory wierszy, domeny, znane stany liczbowe i enum, znaczniki czasu ISO; wybrane kolumny i kolejność.' : 'Anonymous row IDs, domains, reviewed numeric/enum states and ISO timestamps; selected columns and order.',
+      draft.includePrivate ? (PL ? 'Sprawdzone identyfikatory i etykiety encji, obszarów i urządzeń; tylko dostępne metadane.' : 'Reviewed entity, area and device IDs/labels; available metadata only.')
+        : (PL ? 'Pola identyfikujące encje, etykiety, obszary i urządzenia pominięte; identyfikatory row-1, row-2…' : 'Entity IDs, labels, areas and devices omitted; row-1, row-2… identifiers.'),
+      this._includeAttrsInExport && mode !== 'diff' ? (PL ? 'Tylko sprawdzone atrybuty liczbowe, boolean, jednostki i klasy urządzeń.' : 'Only reviewed numeric, boolean, unit and device class attributes.') : (PL ? 'Bez atrybutów.' : 'No attributes.')];
+    const excluded = [PL ? 'Tokeny, użytkownicy, adresy (URL, e-mail, IP, MAC i pocztowe), surowa konfiguracja — zawsze pominięte.' : 'Tokens, users, addresses (URL, email, IP, MAC and postal), raw configuration — always excluded.',
+      PL ? 'Dowolne teksty stanów i atrybutów, nieznane atrybuty, niebezpieczne etykiety/ID; brakujące lub odrzucone komórki = null; niesprawdzone nazwy kolumn = excluded-column-N.' : 'Arbitrary state/attribute strings, unknown attributes and unsafe labels/IDs; missing or excluded cells = null; unreviewed column names use excluded-column-N.'];
+    const sourceLimit = `${PL ? 'Wiersze' : 'Rows'}: ${rows.length}; ${scope}. `
+      + (mode === 'diff' ? (PL ? 'Wyłącznie snapshoty lokalne tej przeglądarki; bez historii serwera i interpolacji; brak encji = null. ' : 'Only browser-local snapshots; no server history or interpolation; absent entity = null. ')
+        : (PL ? 'Tylko stany dostarczone do karty przez Home Assistant. ' : 'Only Home Assistant states actually supplied to this card. '))
+      + (partial ? (PL ? 'Metadane rejestrów niedostępne lub niewczytane; obszary i urządzenia nie są zgadywane. Eksport częściowy.' : 'Registry metadata unavailable or not loaded; no guessed areas or devices. Partial export.')
+        : (PL ? 'Dostępne metadane sprawdzane według jawnego schematu.' : 'Available metadata is reviewed against the explicit schema.'));
+    if (!rows.length) return { serialized: '', status: 'no_data' };
+    const report = {
+      schema: DATA_EXPORT_POLICY.id, report_status: partial ? 'partial' : 'success', data_count: rows.length,
+      scope, included, excluded, source_limit: sourceLimit, rows
+    };
+    return { serialized: this._serializeReviewedExport(report, draft.format), confirmed: true, sourceConfirmed: true,
+      status: report.report_status, included, excluded, sourceLimit };
+  }
+
+  _serializeReviewedExport(report, format) {
+    if (format === 'json') return JSON.stringify(report, null, 2);
+    if (format === 'yaml') {
+      // JSON flow values are valid YAML 1.2; quoted keys and values prevent tags,
+      // anchors, colons, or attribute names from changing the document schema.
+      const { rows, ...metadata } = report;
+      return Object.entries(metadata).map(([key, value]) => `${JSON.stringify(key)}: ${JSON.stringify(value)}\n`).join('')
+        + 'rows:\n' + rows.map(row => `  - ${JSON.stringify(row)}\n`).join('');
     }
-    const ext = format;
-    const mime = {csv:'text/csv',json:'application/json',yaml:'text/yaml'}[format];
-
-    const blob = new Blob([content], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `ha-export-${new Date().toISOString().slice(0,10)}.${ext}`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const rows = report.rows.map(row => {
+      const { attributes, ...fields } = row;
+      if (attributes) for (const [key, value] of Object.entries(attributes)) fields[`attributes.${key}`] = value;
+      return fields;
+    });
+    const dataHeaders = [...new Set(rows.flatMap(row => Object.keys(row)))];
+    // File metadata is present even in Partial CSV, in separate reserved columns.
+    const metadata = { 'report.schema': report.schema, 'report.status': report.report_status,
+      'report.data_count': report.data_count, 'report.scope': report.scope,
+      'report.included': JSON.stringify(report.included), 'report.excluded': JSON.stringify(report.excluded), 'report.source_limit': report.source_limit };
+    const metaHeaders = Object.keys(metadata);
+    const cell = value => {
+      const text = value === null || value === undefined ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value);
+      const unsafe = typeof value !== 'number' && /^[\s\u0000-\u001f]*[=+\-@]/.test(text);
+      const safe = unsafe ? "'" + text : text;
+      return unsafe || /[,"\r\n\t]/.test(safe) ? '"' + safe.replace(/"/g, '""') + '"' : safe;
+    };
+    return [[...dataHeaders, ...metaHeaders].map(cell).join(','), ...rows.map(row => [...dataHeaders.map(key => cell(row[key])), ...metaHeaders.map(key => cell(metadata[key]))].join(','))].join('\n');
   }
 
   _projectColumns(rows) {
@@ -2337,6 +2921,7 @@ canvas {
   }
 
   _refreshRegistryControls() {
+    this._syncExportContext();
     const L=this._lang==='pl', metadata=this._registryMetadata;
     for (const [id,entries,field,name] of [['areaFilter',metadata?.areas,'_filterArea','area'],['deviceFilter',metadata?.devices,'_filterDevice','device']]) {
       const select=this.shadowRoot.getElementById(id);if(!select)continue;
@@ -2356,6 +2941,7 @@ canvas {
   }
 
   _refreshColumnControls() {
+    this._syncExportContext();
     const container=this.shadowRoot.getElementById('columnControls');if(!container)return;
     const L=this._lang==='pl';
     const available=this._availableColumns();
@@ -2373,6 +2959,7 @@ canvas {
   }
 
   _refreshComparisonControls() {
+    this._syncExportContext();
     const L=this._lang==='pl';
     for(const [id,index] of [['compareBefore',0],['compareAfter',1]]) {
       const select=this.shadowRoot.getElementById(id);if(!select)continue;

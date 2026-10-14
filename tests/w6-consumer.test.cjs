@@ -74,7 +74,11 @@ test('private metadata uses only safe IDs/labels; config URLs/address/token fiel
 });
 test('snapshot diff is local, pseudonymized and retains numeric/unknown/absent null',async()=>{
  const f=fixture();try{
-  f.card._snapshots=[{ts:'2026-10-11T00:00:00Z',entities:{'sensor.zero':{state:'0'},'sensor.old':{state:'unavailable'}}},{ts:'2026-10-12T00:00:00Z',entities:{'sensor.zero':{state:'unknown'},'sensor.new':{state:'CANARY-DIFF'}}}];f.card._comparison=[0,1];
+  for(const id of Object.keys(f.states))delete f.states[id];
+  f.states['sensor.zero']={state:'0',attributes:{}};f.states['sensor.old']={state:'unavailable',attributes:{}};
+  f.card.hass=f.hass;f.root.querySelector('#snapshotNow').click();
+  f.states['sensor.zero'].state='unknown';delete f.states['sensor.old'];f.states['sensor.new']={state:'CANARY-DIFF',attributes:{}};
+  f.card.hass=f.hass;f.root.querySelector('#snapshotNow').click();f.card._comparison=[0,1];
   await f.open('diff');f.node('format').value='json';f.node('format').dispatchEvent(new f.dom.window.Event('change'));f.node('filename').value='diff.json';f.node('filename').dispatchEvent(new f.dom.window.Event('input'));f.node('refresh').click();await tick();
   const bytes=f.node('preview').textContent,data=JSON.parse(bytes);assert.equal(bytes.includes('sensor.zero'),false);assert.equal(bytes.includes('CANARY-DIFF'),false);assert.match(data.source_limit,/browser-local/);assert.ok(data.rows.some(r=>r.before_state===0&&r.after_state==='unknown'));assert.ok(data.rows.some(r=>r.before_state===null));assert.ok(data.rows.some(r=>r.after_state===null));
  }finally{f.close();}
@@ -196,5 +200,19 @@ for (const format of ['json','csv','yaml']) for (const disappear of [false,true]
    const blob=f.blobs.at(-1);assert.equal(await blob.text(),preview);f.node('save').click();await tick();
    assert.equal(await blob.text(),preview);f.node('cancel').click();
   }
+ }finally{f.close();}
+});
+
+test('legacy snapshot export omits unclassified numeric states without rewriting stored history',async()=>{
+ const f=fixture();try{
+  const key='ha-data-exporter-snapshots-default';
+  const original=JSON.stringify([{ts:'2026-10-11T00:00:00Z',entities:{'sensor.value':{state:'735791'},'switch.control':{state:'off'}}},{ts:'2026-10-12T00:00:00Z',entities:{'sensor.value':{state:'735792'},'switch.control':{state:'on'}}}]);
+  f.dom.window.localStorage.setItem(key,original);f.dom.window.confirm=()=>true;f.root.querySelector('#loadLegacySnapshots').click();
+  for(const [id,value] of [['compareBefore','0'],['compareAfter','1']]){const select=f.root.querySelector('#'+id);select.value=value;select.dispatchEvent(new f.dom.window.Event('change'));}
+  await f.open('diff');f.node('format').value='json';f.node('format').dispatchEvent(new f.dom.window.Event('change'));f.node('filename').value='legacy.json';f.node('filename').dispatchEvent(new f.dom.window.Event('input'));f.node('refresh').click();await tick();
+  const preview=f.node('preview').textContent;
+  assert.equal(preview.includes('735791'),false);assert.equal(preview.includes('735792'),false);
+  const rows=JSON.parse(preview).rows;assert.ok(rows.some(row=>row.before_state===null&&row.after_state===null));assert.ok(rows.some(row=>row.before_state==='off'&&row.after_state==='on'));
+  assert.equal(f.dom.window.localStorage.getItem(key),original);
  }finally{f.close();}
 });

@@ -73,7 +73,8 @@ test('same-user connection switch changes snapshot namespace and clears comparis
 
 test('editor config-changed updates the existing card table and pagination without another hass setter',()=>{
  const f=fixture();try{
-  f.card._filterSearch='a';f.card._updateEntities();
+  const search=f.root.querySelector('#searchFilter');search.value='Alpha';search.dispatchEvent(new f.dom.window.Event('input'));
+  f.root.querySelector('[data-entity="sensor.a"]').click();
   const editor=f.dom.window.document.createElement('ha-data-exporter-editor');editor.hass=f.hass;editor.setConfig({type:'custom:ha-data-exporter',show_support:false,page_size:50});f.dom.window.document.body.append(editor);
   editor.addEventListener('config-changed',event=>f.card.setConfig(event.detail.config));
   const title=editor.shadowRoot.querySelector('#cf_title');title.value='Updated existing card';title.dispatchEvent(new f.dom.window.Event('input'));
@@ -81,7 +82,8 @@ test('editor config-changed updates the existing card table and pagination witho
   assert.ok(f.root.querySelector('#entityBody tr'),'existing source rows must render immediately');
   assert.match(f.root.querySelector('#entityBody').textContent,/Alpha/);
   assert.ok(f.root.querySelector('#pagination').textContent.trim(),'pagination must be rebuilt');
-  assert.equal(f.card._filterSearch,'a');
+  assert.equal(f.card._filterSearch,'Alpha');assert.equal(f.root.querySelector('#searchFilter').value,'Alpha');
+  assert.equal(f.root.querySelector('[data-entity="sensor.a"]').checked,true);
  }finally{f.dom.window.close();}
 });
 test('enabled automatic snapshots resume after same-user role change and stop for a new user',()=>{

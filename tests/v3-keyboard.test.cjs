@@ -1,5 +1,5 @@
-const installNativeDialog=require('./helpers/native-dialog.cjs');
 'use strict';
+const installNativeDialog=require('./helpers/native-dialog.cjs');
 // Catches inaccessible sorting and focus loss when HA refreshes entity rows.
 const test = require('node:test');
 const assert = require('node:assert/strict');

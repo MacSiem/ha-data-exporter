@@ -70,3 +70,30 @@ test('same-user connection switch changes snapshot namespace and clears comparis
   assert.equal(f.root.querySelector('#exportPreview').textContent,'');
  }finally{f.dom.window.close();}
 });
+
+test('editor config-changed updates the existing card table and pagination without another hass setter',()=>{
+ const f=fixture();try{
+  f.card._filterSearch='a';f.card._updateEntities();
+  const editor=f.dom.window.document.createElement('ha-data-exporter-editor');editor.hass=f.hass;editor.setConfig({type:'custom:ha-data-exporter',show_support:false,page_size:50});f.dom.window.document.body.append(editor);
+  editor.addEventListener('config-changed',event=>f.card.setConfig(event.detail.config));
+  const title=editor.shadowRoot.querySelector('#cf_title');title.value='Updated existing card';title.dispatchEvent(new f.dom.window.Event('input'));
+  assert.match(f.root.textContent,/Updated existing card/);
+  assert.ok(f.root.querySelector('#entityBody tr'),'existing source rows must render immediately');
+  assert.match(f.root.querySelector('#entityBody').textContent,/Alpha/);
+  assert.ok(f.root.querySelector('#pagination').textContent.trim(),'pagination must be rebuilt');
+  assert.equal(f.card._filterSearch,'a');
+ }finally{f.dom.window.close();}
+});
+test('enabled automatic snapshots resume after same-user role change and stop for a new user',()=>{
+ const f=fixture();try{
+  const intervals=new Map();let next=1;f.dom.window.setInterval=callback=>{const id=next++;intervals.set(id,callback);return id;};f.dom.window.clearInterval=id=>intervals.delete(id);
+  f.root.querySelector('#snapshotEnabled').click();assert.equal(intervals.size,1);
+  f.card.hass={...f.hass,user:{id:'one',is_admin:true}};
+  assert.equal(f.root.querySelector('#snapshotEnabled').checked,true);
+  assert.equal(intervals.size,1,'enabled same namespace requires one live timer');
+  const count=f.card._snapshots.length;[...intervals.values()][0]();assert.equal(f.card._snapshots.length,count+1);
+  f.card.hass={...f.hass,user:{id:'new-user',is_admin:false}};
+  assert.equal(f.root.querySelector('#snapshotEnabled').checked,false);assert.equal(intervals.size,0);
+  assert.equal(f.card._snapshots.length,0,'new namespace does not inherit old data');
+ }finally{f.dom.window.close();}
+});

@@ -169,3 +169,32 @@ test('native cancel closes and restores opener; full render closes before root r
   await f.open();assert(f.dialog().querySelector('dialog').matches(':modal'));assert.equal(f.node('private').checked,false);assert.equal(f.anchors.length,0);
  }finally{f.close();}
 });
+
+for (const format of ['json','csv','yaml']) for (const disappear of [false,true]) test(`snapshot producer protects historical friendly-name credentials in ${format}, removed=${disappear}`, async()=>{
+ const f=fixture();try{
+  for(const id of Object.keys(f.states))delete f.states[id];
+  f.states['sensor.value']={state:'735791',attributes:{friendly_name:'API token'}};
+  f.states['sensor.normal']={state:'0',attributes:{friendly_name:'Temperature'}};
+  f.card.hass=f.hass;f.root.querySelector('#snapshotNow').click();
+  f.states['sensor.value'].state='735792';f.states['sensor.normal'].state='2';
+  f.card.hass=f.hass;f.root.querySelector('#snapshotNow').click();
+  if(disappear)delete f.states['sensor.value'];else f.states['sensor.value'].attributes.friendly_name='Neutral renamed sensor';
+  f.card.hass=f.hass;
+  for(const [id,value] of [['compareBefore','0'],['compareAfter','1']]){
+   const select=f.root.querySelector('#'+id);select.value=value;select.dispatchEvent(new f.dom.window.Event('change'));
+  }
+  for(const privateMode of [false,true]){
+   f.root.querySelector('#exportDiff').click();await tick();
+   f.node('format').value=format;f.node('format').dispatchEvent(new f.dom.window.Event('change'));
+   f.node('filename').value='diff.'+format;f.node('filename').dispatchEvent(new f.dom.window.Event('input'));
+   f.node('private').checked=privateMode;f.node('private').dispatchEvent(new f.dom.window.Event('change'));
+   f.node('refresh').click();await tick();
+   const preview=f.node('preview').textContent;
+   assert.equal(preview.includes('735791'),false,'historical before credential must be excluded');
+   assert.equal(preview.includes('735792'),false,'historical after credential must be excluded');
+   if(format==='json')assert.ok(JSON.parse(preview).rows.some(row=>row.before_state===0&&row.after_state===2),'ordinary numeric zero/change retained');
+   const blob=f.blobs.at(-1);assert.equal(await blob.text(),preview);f.node('save').click();await tick();
+   assert.equal(await blob.text(),preview);f.node('cancel').click();
+  }
+ }finally{f.close();}
+});

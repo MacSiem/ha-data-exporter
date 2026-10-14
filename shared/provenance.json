@@ -2,8 +2,8 @@
   "schema": 1,
   "sources": {
     "ha-tools-export.js": {
-      "sha256": "1f9e9c5444ec3b6de44eec136f14ae9e7d89dae1002650b33f746ab9633982f1",
-      "supplied_from": "ha-config-auditor/shared/ha-tools-export.js@e148253120d8c4f28615f284bebf58f8d2f8b10f"
+      "sha256": "bae4197cb254a7e24affbf90f029833127c5ba09b5b96f876a6fd8112f816a3d",
+      "supplied_from": "ha-config-auditor/shared/ha-tools-export.js@5a74b10b0beafc820c21e2f28597527006c7ec70"
     },
     "ha-tools-ui.js": {
       "sha256": "029c06206e55abad9aa09dfcf65bb13027ec24ce6a0bfacc45a938891b27254e",

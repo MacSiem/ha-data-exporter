@@ -1,4 +1,4 @@
-/* HA Tools split — ha-data-exporter v4.1.13 (2026-09-29) — single-tool standalone repo */
+/* HA Tools split — ha-data-exporter v4.2.0 (2026-10-15) — single-tool standalone repo */
 (function() {
 'use strict';
 
@@ -3217,7 +3217,7 @@ canvas {
 if (!customElements.get('ha-data-exporter')) { customElements.define('ha-data-exporter', HADataExporter); }
 
 console.info(
-  '%c  HA-DATA-EXPORTER  %c v4.1.13 ',
+  '%c  HA-DATA-EXPORTER  %c v4.2.0 ',
   'background: #1976d2; color: #fff; font-weight: bold; padding: 2px 6px; border-radius: 4px 0 0 4px;',
   'background: #e3f2fd; color: #1976d2; font-weight: bold; padding: 2px 6px; border-radius: 0 4px 4px 0;'
 );

@@ -2,9 +2,8 @@
 
 ![Preview](banner.png)
 
-Browse, filter and export Home Assistant entity data — states and attributes
-to CSV / JSON / YAML, with optional local snapshots for a lightweight trend
-history. Zero configuration: add the card and it lists every entity in your
+Browse, filter and export reviewed Home Assistant entity data to CSV / JSON /
+YAML, with optional browser-local snapshots for state comparisons. Zero configuration: add the card and it lists every entity in your
 instance.
 
 [![Version](https://img.shields.io/github/v/release/MacSiem/ha-data-exporter)](https://github.com/MacSiem/ha-data-exporter/releases) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -22,15 +21,14 @@ no extra integration:
 2. **Attribute drill-down + 24h history.** Expanding a row shows its full
    attribute set and, on demand, its last 24h of state changes fetched from
    your own Home Assistant instance (`/api/history/period`).
-3. **Export on your terms.** Select rows (or export everything currently
-   filtered) as CSV, JSON or YAML, with attributes optionally included. The
-   export also joins Home Assistant's entity, device and area registries to
-   include device and area IDs and names. An entity's own area assignment takes
-   precedence over its device's area. A privacy confirmation is shown before
-   every download.
-4. **Optional local snapshots.** Turn on periodic snapshots (interval from
-   30s to 1h) to build a lightweight, browser-local trend history per entity
-   — independent of HA's recorder/history retention.
+3. **Export on your terms.** Choose selected entities or the current filtered
+   scope, choose columns and their order, and review the exact JSON, CSV or YAML.
+   Edit the filename before explicitly saving. Private fields start off for
+   every export; opt in only when you need reviewed entity/device/area IDs and
+   labels. An entity's own area takes precedence over its device's area.
+4. **Optional local snapshots.** Capture states manually or at a chosen
+   interval, then compare two saved snapshots. Changes and timestamps belong
+   to this browser; they are not a reconstruction of Recorder history.
 
 ### What is automatic vs. manual
 
@@ -96,9 +94,9 @@ panel_custom:
 
 After restart, **Data Exporter** appears in the HA sidebar.
 
-> The card's visual editor currently only exposes the **Title** field. Set
-> `default_format`, `domains`, `show_attributes`, `show_select_all`,
-> `page_size` or `storage_key` via YAML as shown above.
+The visual editor supports title, domains, default format, page size, attribute
+visibility and `storage_key`. Other YAML options remain preserved. Page size must
+be an integer from 1 to 1000; domains are a comma-separated list in the editor.
 
 The **Settings** button opens the suite settings when embedded in HA Tools Panel.
 In a standalone card it shows configuration guidance; administrators edit the card
@@ -107,18 +105,24 @@ in the dashboard, while other users can change the export and snapshot controls.
 ## Features
 
 - Browse every entity in your instance with a live domain filter and text search.
-- Sortable table — Entity ID, Name, State, Domain, Attribute count.
+- Sortable table — Entity ID, Name, State, Domain, Attribute count; keyboard
+  sort controls and named selection checkboxes. Narrow containers show records
+  with ID, name and state together.
 - Expandable per-entity attribute view, plus on-demand 24h state history from
   Home Assistant's own history API.
 - Export selected entities, or everything currently filtered, to **CSV, JSON
-  or YAML** — with device and area columns and attributes optionally included.
+  or YAML** — with reviewed attributes and opt-in device/area metadata. Choose
+  columns and their order, and filter by loaded area/device metadata.
   Selected entities remain selected when search or domain filters hide them; exports
   still respect the card’s configured `domains` and omit entities that no longer exist.
 - CSV protects spreadsheet cells containing formula-like text; numeric values
   stay numeric.
-- Privacy confirmation dialog before every export.
+- Native review dialog before every export, with editable filename, format,
+  Included/Excluded lists and exact file preview. A download handoff remains
+  unconfirmed when the browser cannot confirm the filesystem result.
 - Optional periodic snapshots (30s–1h interval, 20–200 kept) for a
-  browser-local trend history per entity, independent of HA's recorder.
+  browser-local state comparisons, independent of HA's recorder. Select two
+  snapshots and export changed states with their observed timestamps.
 - Bundled Bento Design System (light + dark mode, follows your HA theme, mobile-friendly).
 - Self-contained — no shared HA Tools dependency.
 - Tool settings, snapshots and dismissed-banner state are cached in browser `localStorage`.
@@ -129,19 +133,22 @@ in the dashboard, while other users can change the export and snapshot controls.
 No. Add the card and it lists every entity in your Home Assistant instance by itself.
 
 **Does this send my data anywhere?**
-No third-party or cloud calls. On export, the card reads the entity, device and
-area registries through your **own** Home Assistant WebSocket API. Expanding an
-entity row loads its 24h history from your Home Assistant REST API
-(`/api/history/period`). Exports are generated and downloaded entirely in your
-browser; nothing is uploaded. Because exported files can contain entity names,
-locations and sensor values, the card shows a confirmation dialog before every
-download and warns you not to share exports publicly or with third-party
-services without informed consent.
+No third-party or cloud calls. Area/device filters load registries from your
+own Home Assistant only when requested. Exporting reviewed private metadata
+can read those registries; unavailable or refused metadata stays explicit.
+Expanding an entity row loads its 24h history from your own Home Assistant REST
+API (`/api/history/period`). Files are prepared in your browser and are never
+uploaded. The review dialog starts with names and IDs excluded. Tokens, users,
+addresses, raw configuration and arbitrary text states/attributes stay excluded
+in every mode, including private opt-in. Numeric values, reviewed enums, units
+and timestamps follow the export policy; missing or excluded cells are null.
 
 **Where are snapshots stored?**
 In your browser's `localStorage`, per browser and per device. Clearing browser
-data removes them. Snapshot history stays local; CSV/JSON/YAML exports contain
-the current filtered entity data, rather than the saved snapshot history.
+data removes them. Exports can contain current filtered/selected entity data
+or state changes between two explicitly chosen local snapshots. The latter
+includes observed states and timestamps, without interpolation or a claim of
+complete server history.
 The same Home Assistant origin and browser profile share this storage across
 accounts. Clear snapshots before handing that profile to another person;
 `storage_key` separates cards, not user accounts.
@@ -154,12 +161,12 @@ snapshot namespace. Cards without a `storage_key` all share the `default`
 namespace.
 
 **Which export formats are supported?**
-CSV, JSON and YAML, selectable per export. You can toggle whether attributes
-are included, independent of the format.
-CSV keeps its nine base columns first and sorts attribute columns by their
-original names. If a name is already used, its CSV header gains an
-`attributes.` prefix until it is unique; its attribute value is preserved.
-JSON and YAML retain the original names inside the `attributes` object.
+CSV, JSON and YAML, selectable in the review dialog. Reviewed attributes are
+optional. JSON and YAML contain a report wrapper and `rows`; CSV includes report
+metadata alongside row columns. Column choices and their order are preserved.
+Unknown attribute or column names cannot introduce raw fields into the file;
+unreviewed columns use `excluded-column-N` and null values. CSV formula-like
+text remains inert while numeric values retain their sign and zero.
 
 **Can I limit the browser to specific domains?**
 Yes — set `domains: [sensor, light, ...]` in the card YAML (see Quick start).
@@ -183,7 +190,10 @@ MIT — see [LICENSE](LICENSE).
 
 ## Privacy and data
 
-Exports are downloaded by your browser and may contain entity names, device/area labels, states and attributes. Review the privacy confirmation and selected fields before downloading. Keep exports private; use synthetic records when reporting a bug.
+Exports contain only reviewed fields. Names and entity/device/area identifiers
+require explicit consent for each export; credentials, users, addresses and raw
+configuration remain excluded. Review the exact file preview before saving.
+Keep exports private and use synthetic records when reporting a bug.
 
 See [SECURITY.md](SECURITY.md) for safe vulnerability reporting and [NOTICE](NOTICE) for licensing notices.
 

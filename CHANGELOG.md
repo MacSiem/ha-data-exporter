@@ -1,3 +1,14 @@
+## 4.2.0 (2026-10-15)
+
+- Keep entity ID, name and current state together in narrow card containers; retain the sortable table in wider layouts.
+- Add keyboard sort buttons, `aria-sort`, named entity checkboxes and stable focus/selection during state updates.
+- Filter by device and area, choose export fields and their order, and preview the exact chosen scope. Entity area takes precedence over device area.
+- Compare two local snapshots by state and timestamp; export changed rows without treating browser snapshots as Recorder history.
+- Expand the visual editor with domains, default format, page size, attributes and storage namespace, while preserving other YAML options.
+- Review JSON, CSV or YAML, edit the filename, and explicitly save the frozen preview. Names and reviewed entity/device/area identifiers require consent for each export.
+- Always exclude credentials, users, addresses, raw configuration and arbitrary text states/attributes. Missing registry metadata remains explicit; numeric zero and unavailable states retain their meanings.
+- Use a native modal with keyboard focus, truthful download status and protection against repeated saves or stale source/access context.
+
 ## 4.1.13 (2026-10-08)
 
 - Export selected entities across search/domain filters while respecting configured domains and current availability.

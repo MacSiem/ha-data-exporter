@@ -1,5 +1,5 @@
-const installNativeDialog=require('./helpers/native-dialog.cjs');
 'use strict';
+const installNativeDialog=require('./helpers/native-dialog.cjs');
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -92,7 +92,7 @@ test('unchanged source setter and background table render preserve open dialog a
 test('Cancel/Escape restore focus; root replacement/disconnect discard and remove document traps',async()=>{
  const f=fixture();try{
   const opener=f.root.querySelector('#exportAllBtn');opener.focus();opener.click();await tick();f.node('cancel').click();assert.equal(f.root.activeElement,opener);
-  opener.click();await tick();f.dom.window.document.dispatchEvent(new f.dom.window.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));assert.equal(f.dialog(),undefined);assert.equal(f.root.activeElement,opener);
+  opener.click();await tick();f.dialog().querySelector('dialog').dispatchEvent(new f.dom.window.Event('cancel',{cancelable:true}));assert.equal(f.dialog(),undefined);assert.equal(f.root.activeElement,opener);
   await f.open();f.card._render();assert.equal(f.dialog(),undefined);const outside=f.dom.window.document.createElement('button');f.dom.window.document.body.append(outside);outside.focus();assert.equal(f.dom.window.document.activeElement,outside);
   await f.open();f.card.remove();assert.equal(f.dialog(),undefined);assert.equal(f.anchors.length,0);
  }finally{f.close();}

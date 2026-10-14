@@ -1,3 +1,4 @@
+const installNativeDialog=require('./helpers/native-dialog.cjs');
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -5,6 +6,7 @@ const fs = require('node:fs');
 const { JSDOM, VirtualConsole } = require('jsdom');
 function fixture() {
  const dom = new JSDOM('', {runScripts:'dangerously',url:'http://localhost/',pretendToBeVisual:true,virtualConsole:new VirtualConsole()});
+ installNativeDialog(dom.window);
  dom.window.eval(fs.readFileSync('ha-data-exporter.js','utf8'));
  const card=dom.window.document.createElement('ha-data-exporter');card.setConfig({show_support:false});dom.window.document.body.append(card);
  const registry={entities:new dom.window.Map([['sensor.a',{entity_id:'sensor.a',device_id:'dev',area_id:'own'}],['sensor.b',{entity_id:'sensor.b',device_id:'dev'}]]),devices:new dom.window.Map([['dev',{id:'dev',name:'Device',area_id:'parent'}]]),areas:new dom.window.Map([['own',{area_id:'own',name:'Own'}],['parent',{area_id:'parent',name:'Parent'}]])};

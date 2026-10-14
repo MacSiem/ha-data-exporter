@@ -1,3 +1,4 @@
+const installNativeDialog=require('./helpers/native-dialog.cjs');
 'use strict';
 // Catches inaccessible sorting and focus loss when HA refreshes entity rows.
 const test = require('node:test');
@@ -6,6 +7,7 @@ const fs = require('node:fs');
 const { JSDOM, VirtualConsole } = require('jsdom');
 function fixture() {
   const dom = new JSDOM('<body></body>', { runScripts:'dangerously', url:'http://localhost/', pretendToBeVisual:true, virtualConsole:new VirtualConsole() });
+  installNativeDialog(dom.window);
   dom.window.eval(fs.readFileSync('ha-data-exporter.js','utf8'));
   const card=dom.window.document.createElement('ha-data-exporter');
   card.setConfig({show_support:false});dom.window.document.body.append(card);

@@ -1,9 +1,11 @@
+const installNativeDialog=require('./helpers/native-dialog.cjs');
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const {JSDOM}=require('jsdom');
 function fixture(){
  const dom=new JSDOM('',{runScripts:'dangerously',url:'http://localhost/'});
+ installNativeDialog(dom.window);
  dom.window.eval(fs.readFileSync('ha-data-exporter.js','utf8'));
  const card=dom.window.document.createElement('ha-data-exporter');card.setConfig({show_support:true});dom.window.document.body.append(card);
  const hass={language:'en',user:{id:'admin',is_admin:true},themes:{},states:{'sensor.qa':{state:'17',attributes:{}}}};

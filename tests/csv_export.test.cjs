@@ -1,3 +1,4 @@
+const installNativeDialog=require('./helpers/native-dialog.cjs');
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const { readFileSync } = require('node:fs');
@@ -6,6 +7,7 @@ const { JSDOM } = require('jsdom');
 
 function exporter() {
   const dom = new JSDOM('', { runScripts: 'dangerously', url: 'http://localhost/' });
+  installNativeDialog(dom.window);
   dom.window.eval(readFileSync(join(__dirname, '..', 'ha-data-exporter.js'), 'utf8'));
   const card = dom.window.document.createElement('ha-data-exporter');
   card._includeAttrsInExport = true;

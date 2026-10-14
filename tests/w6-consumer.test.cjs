@@ -1,3 +1,4 @@
+const installNativeDialog=require('./helpers/native-dialog.cjs');
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -7,6 +8,7 @@ const tick = async () => { for (let i=0;i<8;i++) await Promise.resolve(); };
 function fixture() {
  const dom=new JSDOM('',{runScripts:'dangerously',url:'https://local.invalid/',pretendToBeVisual:true,virtualConsole:new VirtualConsole()});
  const blobs=[],anchors=[],timers=[];
+ installNativeDialog(dom.window);
  dom.window.Blob=class {constructor(parts,options){this.parts=parts;this.type=options.type;blobs.push(this);}async text(){return this.parts.join('');}};
  dom.window.URL.createObjectURL=blob=>{assert.equal(blobs.includes(blob),true);return 'blob:test';};
  dom.window.URL.revokeObjectURL=()=>{};
@@ -153,5 +155,17 @@ test('international monetary and tariff units retain their meaning while unsafe 
    const rows=JSON.parse(f.node('preview').textContent).rows;
    assert.equal(rows.find(r=>r.state===0).attributes.unit_of_measurement,unit);f.node('cancel').click();
   }
+ }finally{f.close();}
+});
+
+
+test('native cancel closes and restores opener; full render closes before root replacement and reopen resets consent',async()=>{
+ const f=fixture();try{
+  const opener=f.root.querySelector('#exportAllBtn');opener.focus();opener.click();await tick();
+  const native=f.dialog().querySelector('dialog');assert(native);assert(native.open);assert(native.matches(':modal'));
+  native.dispatchEvent(new f.dom.window.Event('cancel',{cancelable:true}));await tick();assert.equal(native.open,false);assert.equal(f.dialog(),undefined);assert.equal(f.root.activeElement,opener);assert.equal(f.anchors.length,0);
+  await f.open();const replacement=f.dialog().querySelector('dialog'),host=f.root.querySelector('[data-ha-tools-export]');f.node('private').checked=true;f.node('private').dispatchEvent(new f.dom.window.Event('change'));
+  f.card._render();assert.equal(replacement.open,false);assert.equal(host.isConnected,false);assert.equal(f.dialog(),undefined);
+  await f.open();assert(f.dialog().querySelector('dialog').matches(':modal'));assert.equal(f.node('private').checked,false);assert.equal(f.anchors.length,0);
  }finally{f.close();}
 });

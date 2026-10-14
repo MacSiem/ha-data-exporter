@@ -198,3 +198,10 @@ Keep exports private and use synthetic records when reporting a bug.
 See [SECURITY.md](SECURITY.md) for safe vulnerability reporting and [NOTICE](NOTICE) for licensing notices.
 
 The entity table, filters, export toolbar, pagination, first-run guidance and optional support labels follow the Home Assistant language (Polish or English, including Polish regional locales). Ordinary language updates preserve the focused search and text selection, selected entities, format, attribute choice and dismissed guidance/support.
+
+Snapshot exports retain the privacy decision made when each new snapshot was
+captured. Renaming or deleting an entity does not expose a state that was
+identified as a credential by its original name. Older snapshots do not contain
+that classification: their numeric states are omitted from reviewed exports,
+while known enum/unavailable states remain. Existing local history is not
+rewritten or deleted, and new ordinary numeric measurements retain zero values.

@@ -1072,6 +1072,10 @@ class HADataExporter extends HTMLElement {
     Object.entries(states).forEach(([id, s]) => {
       snap.entities[id] = {
         state: s.state,
+        // Preserve the decision made from this historical label, even if the
+        // entity is later renamed or removed. Never export the label itself.
+        export_state: this._credentialEntity(id, s.attributes?.friendly_name)
+          ? null : this._safeExportState(s.state, id.split('.')[0]),
         attrs: Object.keys(s.attributes).filter(k => k !== 'friendly_name' && k !== 'icon').length
       };
     });
@@ -1195,6 +1199,20 @@ class HADataExporter extends HTMLElement {
     else if (!support) {
       this.shadowRoot.querySelector('.card')?.insertAdjacentHTML('afterend', _renderLocalSupport(this._lang));
       _bindLocalSupportDismiss(this.shadowRoot);
+    }
+    if (identityChanged) {
+      // Settings belong to the newly loaded namespace; update existing controls
+      // without replacing the card or waiting for another hass setter.
+      const enabled = this.shadowRoot.getElementById('snapshotEnabled');
+      if (enabled) enabled.checked = this._snapshotSettings.enabled;
+      for (const [id, value] of [['snapshotInterval', this._snapshotSettings.interval], ['snapshotMax', this._snapshotSettings.maxSnapshots]]) {
+        const control = this.shadowRoot.getElementById(id);
+        if (control) control.value = String(value);
+      }
+      this._updateSnapshotStatus();
+      this._refreshComparisonControls();
+      this._refreshSettingsInfo();
+      if (this.isConnected && this._snapshotSettings.enabled) this._startAutoSnapshot();
     }
     if (previousLanguage !== this._lang) this._refreshLocaleControls();
     else if (identityChanged) this._updateEntities();
@@ -1362,7 +1380,10 @@ class HADataExporter extends HTMLElement {
     // afterwards, since it writes _pageSize directly).
     const ps = parseInt(this._config.page_size, 10);
     if (!isNaN(ps) && ps > 0) this._pageSize = ps;
-    if (this._hass) this._render();
+    if (this._hass) {
+      this._render();
+      this._updateEntities();
+    }
   }
 
   getCardSize() {
@@ -2160,7 +2181,7 @@ canvas {
             <select id="domainFilter">
               <option value="all">${this._t.allDomains}</option>
             </select>
-            <input type="text" id="searchFilter" placeholder="${this._t.searchEntities}" aria-label="${this._t.searchEntities}" />
+            <input type="text" id="searchFilter" value="${_esc(this._filterSearch || '')}" placeholder="${this._t.searchEntities}" aria-label="${this._t.searchEntities}" />
             <span class="toolbar-spacer"></span>
             <span class="entity-count" id="entityCount"></span>
             <select class="format-select" id="formatSelect">
@@ -2354,7 +2375,7 @@ canvas {
 
     // Update domain filter
     const domains = this._getDomains();
-    const currentDomain = domainFilter.value;
+    const currentDomain = this._filterDomain;
     domainFilter.innerHTML = '<option value="all">' + this._t.allDomains + ' (' + Object.keys(this._hass.states).length + ')</option>';
     domains.forEach(d => {
       const count = Object.keys(this._hass.states).filter(id => id.startsWith(d + '.')).length;
@@ -2744,17 +2765,30 @@ canvas {
 
   _reviewedExportRows(mode, includePrivate) {
     const identity = (id, i) => includePrivate ? this._safeExportText(id, true) || `row-${i + 1}` : `row-${i + 1}`;
-    if (mode === 'diff') return this._comparisonFrame().map((row, i) => {
-      const domain = row.entity_id.split('.')[0];
-      return {
-        entity_id: identity(row.entity_id, i), domain: /^[a-z_]{1,32}$/.test(domain) ? domain : null,
-        change: row.change,
-        before_state: row.before_state === null ? null : (this._credentialEntity(row.entity_id) ? null : this._safeExportState(row.before_state, domain)),
-        after_state: row.after_state === null ? null : (this._credentialEntity(row.entity_id) ? null : this._safeExportState(row.after_state, domain)),
-        before_timestamp: this._safeExportTimestamp(row.before_timestamp), after_timestamp: this._safeExportTimestamp(row.after_timestamp),
-        source: 'browser-local snapshot'
+    if (mode === 'diff') {
+      const choices = this._snapshotChoices();
+      const [before, after] = this._comparison.map(index => choices[index]);
+      const reviewedState = (snapshot, id, value, domain) => {
+        if (value === null || this._credentialEntity(id)) return null;
+        const captured = snapshot?.entities?.[id];
+        if (captured && Object.hasOwn(captured, 'export_state')) return this._safeExportState(captured.export_state, domain);
+        // Older snapshots discarded the friendly-name classification. Numeric
+        // values cannot be retrospectively trusted from a current label.
+        const legacy = this._safeExportState(value, domain);
+        return typeof legacy === 'number' ? null : legacy;
       };
-    });
+      return this._comparisonFrame().map((row, i) => {
+        const domain = row.entity_id.split('.')[0];
+        return {
+          entity_id: identity(row.entity_id, i), domain: /^[a-z_]{1,32}$/.test(domain) ? domain : null,
+          change: row.change,
+          before_state: reviewedState(before, row.entity_id, row.before_state, domain),
+          after_state: reviewedState(after, row.entity_id, row.after_state, domain),
+          before_timestamp: this._safeExportTimestamp(row.before_timestamp), after_timestamp: this._safeExportTimestamp(row.after_timestamp),
+          source: 'browser-local snapshot'
+        };
+      });
+    }
     const entities = mode === 'selected' ? this._getSelectedEntities() : this._getFilteredEntities();
     const metadata = this._registryMetadata;
     const rows = entities.map((e, i) => {
@@ -2797,7 +2831,7 @@ canvas {
     const excluded = [PL ? 'Tokeny, użytkownicy, adresy (URL, e-mail, IP, MAC i pocztowe), surowa konfiguracja — zawsze pominięte.' : 'Tokens, users, addresses (URL, email, IP, MAC and postal), raw configuration — always excluded.',
       PL ? 'Dowolne teksty stanów i atrybutów, nieznane atrybuty, niebezpieczne etykiety/ID; brakujące lub odrzucone komórki = null; niesprawdzone nazwy kolumn = excluded-column-N.' : 'Arbitrary state/attribute strings, unknown attributes and unsafe labels/IDs; missing or excluded cells = null; unreviewed column names use excluded-column-N.'];
     const sourceLimit = `${PL ? 'Wiersze' : 'Rows'}: ${rows.length}; ${scope}. `
-      + (mode === 'diff' ? (PL ? 'Wyłącznie snapshoty lokalne tej przeglądarki; bez historii serwera i interpolacji; brak encji = null. ' : 'Only browser-local snapshots; no server history or interpolation; absent entity = null. ')
+      + (mode === 'diff' ? (PL ? 'Wyłącznie snapshoty lokalne tej przeglądarki; bez historii serwera i interpolacji; brak encji = null. Starsze snapshoty bez zapisanej klasyfikacji eksportu pomijają wartości liczbowe. ' : 'Only browser-local snapshots; no server history or interpolation; absent entity = null. Older snapshots without saved export classification omit numeric states. ')
         : (PL ? 'Tylko stany dostarczone do karty przez Home Assistant. ' : 'Only Home Assistant states actually supplied to this card. '))
       + (partial ? (PL ? 'Metadane rejestrów niedostępne lub niewczytane; obszary i urządzenia nie są zgadywane. Eksport częściowy.' : 'Registry metadata unavailable or not loaded; no guessed areas or devices. Partial export.')
         : (PL ? 'Dostępne metadane sprawdzane według jawnego schematu.' : 'Available metadata is reviewed against the explicit schema.'));

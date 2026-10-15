@@ -1125,6 +1125,7 @@ class HADataExporter extends HTMLElement {
     this._bindExportBrowserLifecycle();
     this._bindExportConnection(this._hass?.connection);
     this._syncExportContext();
+    if (this._hass && this._snapshotSettings.enabled) this._startAutoSnapshot();
   }
 
   disconnectedCallback() {

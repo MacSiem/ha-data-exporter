@@ -4,7 +4,7 @@
 - Keep the full checkbox and expand controls visible in narrow records, including at 200% browser zoom.
 - Preserve the historical privacy decision for snapshot exports even after an entity is renamed or removed. Older unclassified numeric cells are omitted without rewriting local history.
 - Refresh rows, filters and pagination immediately after visual-editor changes.
-- Resume enabled automatic snapshots after same-user role changes and synchronize settings controls when switching users.
+- Resume enabled automatic snapshots after returning to a detached card or same-user role changes, and synchronize settings controls when switching users.
 
 - Keep entity ID, name and current state together in narrow card containers; retain the sortable table in wider layouts.
 - Add keyboard sort buttons, `aria-sort`, named entity checkboxes and stable focus/selection during state updates.

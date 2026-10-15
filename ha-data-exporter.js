@@ -2968,6 +2968,7 @@ canvas {
         .table-container {overflow:visible;max-height:none;} table,tbody {display:block;width:100%;} thead {display:block;} thead tr {display:flex;flex-wrap:wrap;} thead th {display:block;}
         #entityBody > tr:not(.attr-row) {display:grid;grid-template-columns:44px 1fr 44px;gap:4px;padding:10px 0;border-bottom:1px solid var(--divider-color,#ddd);}
         #entityBody > tr:not(.attr-row) td {display:block;border:0;padding:4px;min-width:0;white-space:normal;overflow-wrap:anywhere;}
+        #entityBody .checkbox-cell,#entityBody .expand-cell {width:44px;min-width:44px;padding:0;overflow:visible;}
         #entityBody .checkbox-cell {grid-column:1;grid-row:1 / 4;align-self:center;} #entityBody .expand-cell {grid-column:3;grid-row:1 / 4;align-self:center;}
         #entityBody .entity-name {grid-column:2;grid-row:1;font-weight:600;} #entityBody .state-val {grid-column:2;grid-row:2;} #entityBody .entity-id {grid-column:2;grid-row:3;font-size:12px;}
         #entityBody > tr:not(.attr-row) td:nth-child(6),#entityBody > tr:not(.attr-row) td:nth-child(7) {display:none;}

@@ -1,5 +1,6 @@
 ## 4.2.0 (2026-10-15)
 
+- Show changed snapshot states directly below the chosen pair, with both source timestamps, explicit missing entities, and pages of 20 changes.
 - Keep the full checkbox and expand controls visible in narrow records, including at 200% browser zoom.
 - Preserve the historical privacy decision for snapshot exports even after an entity is renamed or removed. Older unclassified numeric cells are omitted without rewriting local history.
 - Refresh rows, filters and pagination immediately after visual-editor changes.

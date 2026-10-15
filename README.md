@@ -205,3 +205,5 @@ identified as a credential by its original name. Older snapshots do not contain
 that classification: their numeric states are omitted from reviewed exports,
 while known enum/unavailable states remain. Existing local history is not
 rewritten or deleted, and new ordinary numeric measurements retain zero values.
+
+Snapshot comparison shows changed states and both saved timestamps directly in the card, with 20 changes per page. Missing entities are explicit and attributes are not compared; the reviewed export includes the complete comparison.

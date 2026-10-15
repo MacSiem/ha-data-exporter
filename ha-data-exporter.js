@@ -2962,6 +2962,7 @@ canvas {
       .checkbox-cell:has(.touch-checkbox) {padding:0;min-width:44px;}
       .touch-checkbox:focus-within {outline:2px solid var(--primary-color,#2563eb);outline-offset:2px;border-radius:6px;}
       .feature-controls select {max-width:100%;} .card :focus-visible {outline:2px solid var(--primary-color,#2563eb);outline-offset:2px;}
+      .snapshot-comparison {margin:12px 0;padding:12px;border:1px solid var(--divider-color,#ddd);border-radius:10px;} .snapshot-comparison[hidden]{display:none;} .snapshot-comparison p{overflow-wrap:anywhere;} .snapshot-comparison table,.snapshot-comparison thead,.snapshot-comparison tbody{display:block;width:100%;} .snapshot-comparison thead tr,.snapshot-comparison tbody tr{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) minmax(0,1fr);} .snapshot-comparison th,.snapshot-comparison td{display:block;min-width:0;white-space:normal;overflow-wrap:anywhere;padding:8px;} .snapshot-pages{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
       #exportPreview {white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow:auto;} .record-fields {display:grid;grid-template-columns:max-content 1fr;gap:6px;} .record-fields dd {margin:0;overflow-wrap:anywhere;}
       @container data-card (max-width:499px) {
         .toolbar {gap:8px;} .toolbar input {min-width:0;flex:1 1 100%;}
@@ -2989,7 +2990,8 @@ canvas {
     this.shadowRoot.querySelector('.snapshot-bar').after(compare);
     const preview = document.createElement('section');
     preview.innerHTML = '<p id="previewScope" role="status"></p><pre id="exportPreview" tabindex="0"></pre>';
-    compare.after(preview);
+    const comparison=document.createElement('section');comparison.id='snapshotComparison';comparison.className='snapshot-comparison';comparison.hidden=true;compare.after(comparison);
+    comparison.after(preview);
     for (const [id, field] of [['areaFilter','_filterArea'],['deviceFilter','_filterDevice']]) this.shadowRoot.getElementById(id).addEventListener('change', e => { this[field] = e.target.value; this._currentPage=0; this._updateEntities(); });
     this.shadowRoot.getElementById('loadRegistryFilters').addEventListener('click', () => { if (this._registryPromise) return; this._registryMetadata=null; this._registryStatus='loading'; this._refreshRegistryControls(); this._ensureRegistryMetadata(); });
     this.shadowRoot.getElementById('clearFilters').addEventListener('click', () => {
@@ -3066,7 +3068,31 @@ canvas {
     const valid=this._comparison.every(i=>i!==null&&!!this._snapshotChoices()[i])&&this._comparison[0]!==this._comparison[1];
     const button=this.shadowRoot.getElementById('exportDiff');if(button)button.disabled=!valid;
     const legacy=this.shadowRoot.getElementById('loadLegacySnapshots');if(legacy)legacy.disabled=!this._snapshotScope;
-    const count=this.shadowRoot.getElementById('diffCount');if(count)count.textContent=valid?`${this._comparisonFrame().length} ${L?'zmian; unavailable/unknown zachowane dosłownie, brak encji = null':'changes; unavailable/unknown are literal, absent entity = null'}`:'';
+    const rows=valid?this._comparisonFrame():[];
+    const count=this.shadowRoot.getElementById('diffCount');if(count)count.textContent=valid?`${rows.length} ${L?'zmian; unavailable/unknown zachowane dosłownie, brak encji = null':'changes; unavailable/unknown are literal, absent entity = null'}`:'';
+    this._renderSnapshotComparison(rows,valid);
+  }
+
+  _renderSnapshotComparison(rows, valid) {
+    const host=this.shadowRoot.getElementById('snapshotComparison');if(!host)return;
+    const pair=this._comparison.map(i=>i===null?'':this._snapshotChoices()[i]?.ts||'').join('|');
+    if(pair!==this._comparisonViewPair){this._comparisonViewPair=pair;this._comparisonPage=0;}
+    host.replaceChildren();host.hidden=!valid;if(!valid)return;
+    const L=this._lang==='pl',before=this._snapshotChoices()[this._comparison[0]],after=this._snapshotChoices()[this._comparison[1]];
+    const note=document.createElement('p');note.textContent=L?'Wyłącznie stany zapisane w tej przeglądarce. Atrybuty nie są porównywane; brak encji nie jest zerem.':'State only, saved in this browser. Attributes are not compared; an absent entity is not zero.';
+    const times=document.createElement('p');times.className='snapshot-times';times.textContent=`${L?'Przed':'Before'}: ${before.ts} · ${L?'Po':'After'}: ${after.ts}`;host.append(note,times);
+    if(!rows.length){const empty=document.createElement('p');empty.setAttribute('role','status');empty.textContent=L?'Brak zmienionych stanów.':'No changed states.';host.append(empty);return;}
+    const pageSize=20,pages=Math.ceil(rows.length/pageSize);this._comparisonPage=Math.max(0,Math.min(this._comparisonPage||0,pages-1));
+    const table=document.createElement('table');table.setAttribute('aria-label',L?'Zmiany stanów snapshotów':'Snapshot state changes');
+    const head=table.createTHead().insertRow();for(const label of [L?'Encja':'Entity',L?'Przed':'Before',L?'Po':'After']){const th=document.createElement('th');th.scope='col';th.textContent=label;head.append(th);}
+    const body=table.createTBody();for(const row of rows.slice(this._comparisonPage*pageSize,(this._comparisonPage+1)*pageSize)){
+      const tr=body.insertRow();for(const value of [row.entity_id,row.before_state,row.after_state]){const td=tr.insertCell();td.textContent=value===null?(L?'Brak encji':'Not present'):String(value);}
+    }
+    host.append(table);
+    if(pages>1){const nav=document.createElement('nav');nav.className='snapshot-pages';nav.setAttribute('aria-label',L?'Strony zmian snapshotów':'Snapshot changes pages');
+      for(const [offset,label] of [[-1,L?'Poprzednie zmiany snapshotów':'Previous snapshot changes'],[1,L?'Następne zmiany snapshotów':'Next snapshot changes']]){const button=document.createElement('button');button.type='button';button.textContent=label;button.setAttribute('aria-label',label);button.disabled=this._comparisonPage+offset<0||this._comparisonPage+offset>=pages;button.addEventListener('click',()=>{this._comparisonPage+=offset;this._renderSnapshotComparison(rows,true);host.querySelector(`button[aria-label="${label}"]`)?.focus();});nav.append(button);}
+      const status=document.createElement('span');status.textContent=`${this._comparisonPage+1} / ${pages} (${rows.length})`;nav.append(status);host.append(nav);
+    }
   }
 
   _toCSV(data) {

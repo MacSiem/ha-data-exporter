@@ -46,9 +46,15 @@ no extra integration:
 |---|---|
 | ![Data Exporter, light theme](docs/screenshots/card-main-light.png) | ![Data Exporter, dark theme](docs/screenshots/card-main-dark.png) |
 
-*The entity browser with synthetic entity names: domain filter, search,
-sortable table, export controls and snapshot bar. Dark mode follows your Home
-Assistant theme.*
+*Version 4.2.0 with synthetic demonstration data: domain/search and area/device filters,
+sortable rows, reviewed export controls and browser-local snapshots. Dark mode follows
+your Home Assistant theme. These screenshots contain no live household data.*
+
+![Browser-local snapshot comparison](docs/screenshots/snapshot-comparison.png)
+
+*Compare only changed states with both saved timestamps. Missing entities are explicit;
+`0`, `unavailable` and `unknown` keep their distinct meanings. The export contains the
+complete comparison, including changes beyond the visible page.*
 
 ## Installation
 

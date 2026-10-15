@@ -1,0 +1,14 @@
+{
+  "frontend_sha256": "d3ec589390a7a19f1e2cfd38481be8ee355ad03945e989ee8a8c6715264c3465",
+  "fixture": "docs/screenshots/_harness.html",
+  "synthetic": true,
+  "capture": "Codex in-app browser full-page JPEG; pixel-only crop and PNG conversion by sips; no UI restyling",
+  "source_head": "8da4c01b8dd484ea06bd1481725e5482cd47b3e8",
+  "files": {
+    "docs/screenshots/card-main-light.png": "fbac26958f538ebec0d932606d659d8be068d1d32b7798ec1a2ad101056f17c6",
+    "docs/screenshots/card-main-dark.png": "8738f3ebddcb927233e8e8445f6ffc16b8ec9a9c3d3c8a3e2a93523b5399ae15",
+    "docs/screenshots/snapshot-comparison.png": "ae71abe2adda452871e343c98ac2898df5874cd4988613cebc2f70420839158c"
+  },
+  "scope": "README documentation screenshots, not actual HA/HACS proof",
+  "clip_API_attempts": "rejected because cropped capture reflowed content; full-page capture retained, fixed pixel crop verified visually"
+}

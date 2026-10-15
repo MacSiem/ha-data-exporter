@@ -99,3 +99,20 @@ test('enabled automatic snapshots resume after same-user role change and stop fo
   assert.equal(f.card._snapshots.length,0,'new namespace does not inherit old data');
  }finally{f.dom.window.close();}
 });
+
+test('enabled automatic snapshots resume once after the same card is reattached',()=>{
+ const f=fixture();try{
+  const intervals=new Map();let next=1;f.dom.window.setInterval=callback=>{const id=next++;intervals.set(id,callback);return id;};f.dom.window.clearInterval=id=>intervals.delete(id);
+  f.root.querySelector('#snapshotEnabled').click();assert.equal(intervals.size,1);
+  f.card.remove();assert.equal(intervals.size,0,'detached card must release its timer');
+  f.hass.states['sensor.c']={state:'7',attributes:{friendly_name:'Orphan'}};
+  f.dom.window.document.body.append(f.card);f.card.hass=f.hass;
+  assert.equal(f.root.querySelector('#snapshotEnabled').checked,true);
+  assert.equal(intervals.size,1,'reattached enabled card requires exactly one live timer');
+  const count=f.card._snapshots.length;[...intervals.values()][0]();
+  assert.equal(f.card._snapshots.length,count+1);assert.equal(f.card._snapshots.at(-1).entities['sensor.c'].state,'7');
+  f.card.remove();assert.equal(intervals.size,0);
+  f.dom.window.document.body.append(f.card);assert.equal(intervals.size,1,'second return must not duplicate timers');
+  f.card.remove();assert.equal(intervals.size,0);
+ }finally{f.dom.window.close();}
+});

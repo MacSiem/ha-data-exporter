@@ -3075,10 +3075,10 @@ canvas {
 
   _renderSnapshotComparison(rows, valid) {
     const host=this.shadowRoot.getElementById('snapshotComparison');if(!host)return;
-    const pair=this._comparison.map(i=>i===null?'':this._snapshotChoices()[i]?.ts||'').join('|');
+    const pair=this._comparison.map(i=>i===null?'':`${i}:${this._snapshotChoices()[i]?.ts||''}`).join('|');
     if(pair!==this._comparisonViewPair){this._comparisonViewPair=pair;this._comparisonPage=0;}
     host.replaceChildren();host.hidden=!valid;if(!valid)return;
-    const L=this._lang==='pl',before=this._snapshotChoices()[this._comparison[0]],after=this._snapshotChoices()[this._comparison[1]];
+    const L=this._lang==='pl',epoch=this._identityEpoch,before=this._snapshotChoices()[this._comparison[0]],after=this._snapshotChoices()[this._comparison[1]];
     const note=document.createElement('p');note.textContent=L?'Wyłącznie stany zapisane w tej przeglądarce. Atrybuty nie są porównywane; brak encji nie jest zerem.':'State only, saved in this browser. Attributes are not compared; an absent entity is not zero.';
     const times=document.createElement('p');times.className='snapshot-times';times.textContent=`${L?'Przed':'Before'}: ${before.ts} · ${L?'Po':'After'}: ${after.ts}`;host.append(note,times);
     if(!rows.length){const empty=document.createElement('p');empty.setAttribute('role','status');empty.textContent=L?'Brak zmienionych stanów.':'No changed states.';host.append(empty);return;}
@@ -3090,7 +3090,7 @@ canvas {
     }
     host.append(table);
     if(pages>1){const nav=document.createElement('nav');nav.className='snapshot-pages';nav.setAttribute('aria-label',L?'Strony zmian snapshotów':'Snapshot changes pages');
-      for(const [offset,label] of [[-1,L?'Poprzednie zmiany snapshotów':'Previous snapshot changes'],[1,L?'Następne zmiany snapshotów':'Next snapshot changes']]){const button=document.createElement('button');button.type='button';button.textContent=label;button.setAttribute('aria-label',label);button.disabled=this._comparisonPage+offset<0||this._comparisonPage+offset>=pages;button.addEventListener('click',()=>{this._comparisonPage+=offset;this._renderSnapshotComparison(rows,true);host.querySelector(`button[aria-label="${label}"]`)?.focus();});nav.append(button);}
+      for(const [offset,label] of [[-1,L?'Poprzednie zmiany snapshotów':'Previous snapshot changes'],[1,L?'Następne zmiany snapshotów':'Next snapshot changes']]){const button=document.createElement('button');button.type='button';button.textContent=label;button.setAttribute('aria-label',label);button.disabled=this._comparisonPage+offset<0||this._comparisonPage+offset>=pages;button.addEventListener('click',()=>{if(this._identityEpoch!==epoch||this._snapshotChoices()[this._comparison[0]]!==before||this._snapshotChoices()[this._comparison[1]]!==after)return;this._comparisonPage+=offset;this._renderSnapshotComparison(rows,true);host.querySelector(`button[aria-label="${label}"]`)?.focus();});nav.append(button);}
       const status=document.createElement('span');status.textContent=`${this._comparisonPage+1} / ${pages} (${rows.length})`;nav.append(status);host.append(nav);
     }
   }

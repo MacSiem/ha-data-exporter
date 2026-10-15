@@ -30,3 +30,12 @@ test('visible comparison pages all changes and clears when pair or identity beco
   f.card.hass={...f.hass,user:{id:'another',is_admin:false}};assert.equal(f.root.querySelector('table[aria-label="Snapshot state changes"]'),null);assert.equal(f.reads(),0);
  }finally{f.close();}
 });
+test('a stale pagination action cannot restore an older pair or another user history',()=>{
+ const before=Object.fromEntries(Array.from({length:25},(_,i)=>['sensor.qa_'+String(i).padStart(2,'0'),entity('0')]));const after=Object.fromEntries(Object.keys(before).map(id=>[id,entity('1')]));const f=fixture(before);try{
+  const errors=[];f.dom.window.addEventListener('error',event=>{errors.push(event.error);event.preventDefault();});
+  f.capture();f.advance(after);f.capture();f.compare();const oldNext=[...f.root.querySelectorAll('button')].find(b=>b.getAttribute('aria-label')==='Next snapshot changes');
+  for(const [id,value] of [['compareBefore','1'],['compareAfter','0']]){const select=f.root.querySelector('#'+id);select.value=value;select.dispatchEvent(new f.dom.window.Event('change'));}
+  oldNext.click();let table=f.root.querySelector('table[aria-label="Snapshot state changes"]');assert.equal(table.querySelector('tbody tr').cells[1].textContent,'1');assert.equal(table.querySelectorAll('tbody tr').length,20);
+  f.card.hass={...f.hass,user:{id:'another',is_admin:false}};oldNext.click();assert.equal(errors.length,0);assert.equal(f.root.querySelector('table[aria-label="Snapshot state changes"]'),null);
+ }finally{f.close();}
+});

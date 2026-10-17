@@ -78,3 +78,16 @@ test('full HA locale sorts registry names naturally and updates an expanded hist
   f.hass.locale.language='sv-SE';f.card.hass=f.hass;assert.equal(f.card._collator().resolvedOptions().locale,'sv');assert.equal(f.reads.length,count);
  }finally{f.close();}
 });
+test('identity and time zone changing together remove the previous user rows immediately',()=>{
+ const f=fixture();try{
+  assert.match(f.root.querySelector('#entityBody').textContent,/sensor.two/);
+  f.card.hass={...f.hass,user:{id:'other',is_admin:false},locale:{...f.hass.locale,time_zone:'server'},states:{'sensor.other':{state:'0',attributes:{friendly_name:'Other user row'}}}};
+  assert.doesNotMatch(f.root.querySelector('#entityBody').textContent,/sensor.two|sensor.ten/);assert.match(f.root.querySelector('#entityBody').textContent,/sensor.other/);assert.equal(f.reads.length,0);
+ }finally{f.close();}
+});
+test('numeric history timestamps remain dates after an in-place profile change',()=>{
+ const f=fixture();try{
+  const host=f.dom.window.document.createElement('div');f.root.append(host);f.card._renderHistory(host,[{time:0,state:'0'},{time:Date.parse('2026-10-25T00:30:05Z'),state:'1'}],'sensor.two');assert.match(host.textContent,/1970/);assert.match(host.textContent,/09:30:05/);
+  f.hass.locale.time_format='12';f.card.hass=f.hass;assert.match(host.textContent,/1970/);assert.match(host.textContent,/09:30:05.*am/i);assert.equal(host.textContent.includes('—'),false);assert.equal(f.reads.length,0);
+ }finally{f.close();}
+});

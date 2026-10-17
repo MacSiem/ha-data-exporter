@@ -1311,8 +1311,8 @@ class HADataExporter extends HTMLElement {
       if (this.isConnected && this._snapshotSettings.enabled) this._startAutoSnapshot();
     }
     if (previousLanguage !== this._lang || previousLocale !== this._presentationLocale) this._refreshLocaleControls();
-    else if (formatChanged) this._refreshPresentationTimes();
     else if (identityChanged) this._updateEntities();
+    else if (formatChanged) this._refreshPresentationTimes();
     if (now - (this._lastRenderTime || 0) < 10000) {
       if (!this._renderScheduled) {
         this._renderScheduled = true;
@@ -2563,7 +2563,7 @@ canvas {
           attrHtml += '<div class="history-section"><div class="history-title">\u{1F4BE} ' + this._t.snapshotsTitle + ' (' + snapHistory.length + ' ' + this._t.snapshots + ')</div><div class="history-list">';
           last10.forEach(h => {
             const t = this._displayTimestamp(h.ts);
-            attrHtml += '<div class="history-item"><time class="history-time" datetime="' + _esc(h.ts) + '">' + _esc(t) + '</time><span class="history-state">' + _esc(h.state) + '</span><span style="font-size:11px;color:var(--bento-text-secondary,#64748b);">' + _esc(h.attrs) + ' ' + this._t.attrs + '</span></div>';
+            attrHtml += '<div class="history-item"><time class="history-time" datetime="' + _esc(this._timestampAttribute(h.ts)) + '">' + _esc(t) + '</time><span class="history-state">' + _esc(h.state) + '</span><span style="font-size:11px;color:var(--bento-text-secondary,#64748b);">' + _esc(h.attrs) + ' ' + this._t.attrs + '</span></div>';
           });
           attrHtml += '</div></div>';
         }
@@ -2648,7 +2648,7 @@ canvas {
     this._refreshActiveFilters();
     this._refreshColumnSummary();
     const note = this.shadowRoot.getElementById('selectionScope');
-    if (note) { const visible = new Set(this._getFilteredEntities().map(e => e.entity_id)); const outside = this._getSelectedEntities().filter(e => !visible.has(e.entity_id)).length; note.textContent = this._lang === 'pl' ? `Zaznaczone: ${count}; poza filtrami: ${outside}. Eksport zaznaczonych obejmuje także encje poza filtrami. Eksportuj wszystko używa bieżących filtrów.` : `Selected: ${count}; outside filters: ${outside}. Selected export includes entities outside filters. Export All uses current filters.`; }
+    if (note) { const visible = new Set(this._getFilteredEntities().map(e => e.entity_id)); const outside = this._getSelectedEntities().filter(e => !visible.has(e.entity_id)).length; note.textContent = this._lang === 'pl' ? `Zaznaczone: ${count}; w filtrach: ${visible.size}; poza filtrami: ${outside}. Zaznaczone obejmują też encje poza filtrami.` : `Selected: ${count}; within filters: ${visible.size}; outside filters: ${outside}. Selected includes entities outside filters.`; }
   }
 
   async _loadRegistryMetadata() {
@@ -3143,6 +3143,11 @@ canvas {
     return (this._formatUi || createFormatUi.forHass(this._hass)).pointLabel(value, true) || '—';
   }
 
+  _timestampAttribute(value) {
+    if (!(typeof value === 'number' && Number.isFinite(value)) && !(typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value))) return '';
+    try { return new Date(value).toISOString(); } catch (_) { return ''; }
+  }
+
   _refreshPresentationTimes() {
     this._refreshComparisonControls();
     this.shadowRoot.querySelectorAll('.history-time[datetime]').forEach(node=>{node.textContent=this._displayTimestamp(node.getAttribute('datetime'));});
@@ -3413,7 +3418,7 @@ canvas {
       const timeStr = this._displayTimestamp(ch.time);
       const isCurrent = i === changes.length - 1;
       html += '<div class="history-item' + (isCurrent ? '' : '') + '">';
-      html += '<time class="history-time" datetime="' + _esc(ch.time) + '">' + _esc(timeStr) + '</time>';
+      html += '<time class="history-time" datetime="' + _esc(this._timestampAttribute(ch.time)) + '">' + _esc(timeStr) + '</time>';
       if (i > 0) html += '<span class="history-arrow">\u2192</span>';
       html += '<span class="history-state">' + _esc(ch.state || '?') + '</span>';
       if (isCurrent) html += ' <span style="font-size:10px;color:var(--bento-primary)">(' + this._t.now + ')</span>';
@@ -3448,7 +3453,7 @@ canvas {
 if (!customElements.get('ha-data-exporter')) { customElements.define('ha-data-exporter', HADataExporter); }
 
 console.info(
-  '%c  HA-DATA-EXPORTER  %c v4.2.0 ',
+  '%c  HA-DATA-EXPORTER  %c v4.3.0 ',
   'background: #1976d2; color: #fff; font-weight: bold; padding: 2px 6px; border-radius: 4px 0 0 4px;',
   'background: #e3f2fd; color: #1976d2; font-weight: bold; padding: 2px 6px; border-radius: 0 4px 4px 0;'
 );

@@ -1,3 +1,21 @@
+## 4.3.0 (2026-10-17)
+
+- Separate Export and Records/comparison tabs, retaining selections, snapshots,
+  timers and comparison choices when switching.
+- Follow entity selection with collapsed columns/format and one bottom Preview
+  and save action. Selected entities outside filters remain included; all within
+  filters includes every page. The reviewed export policy and file schemas are
+  unchanged; private fields start off each time.
+- Load area/device registries on the first explicit + Filter action, with one
+  shared request, clear unavailable state and manual retry. Active filter chips
+  clear one filter and return keyboard focus to its control.
+- Display friendly timestamps with seconds and offsets using system/browser time
+  by default, respecting Home Assistant profile overrides and daylight-saving
+  changes. Raw timestamps and exports remain unchanged. Numeric history times
+  retain their meaning when preferences change.
+- Refresh rows immediately when user/connection and time preferences change
+  together. Natural name sorting follows the full Home Assistant locale.
+
 ## 4.2.0 (2026-10-15)
 
 - Show changed snapshot states directly below the chosen pair, with both source timestamps, explicit missing entities, and pages of 20 changes.

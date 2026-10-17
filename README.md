@@ -30,12 +30,36 @@ no extra integration:
    interval, then compare two saved snapshots. Changes and timestamps belong
    to this browser; they are not a reconstruction of Recorder history.
 
+### Export and saved comparisons
+
+The **Export** tab follows three steps: choose entities, open **Columns and
+format** when needed, then use the single **Preview and save** action at the
+bottom. Its scope selector chooses selected entities (including those hidden by
+filters) or all entities within the current filters, across every page. Counts
+show both scopes before you open the review dialog.
+
+**+ Filter** opens area/device filters and loads the three Home Assistant
+registries on first use. An unavailable registry disables these filters and
+shows **Try again**; reopening the panel does not automatically retry. Remove an
+active filter with its × button without losing selected entities.
+
+**Records and comparison** contains manual/periodic snapshots, retention and
+before/after comparison. Switching tabs preserves your choices and the running
+snapshot interval. It does not take an extra snapshot.
+
+Snapshot choices, comparison timestamps and expanded history show readable dates
+with seconds and a time zone offset. The default time zone comes from your
+system/browser. Your Home Assistant profile can explicitly choose server time,
+12/24-hour time and system date formatting. Repeated hours during daylight-saving
+changes remain distinguishable. Raw timestamps and export values keep their
+original representation.
+
 ### What is automatic vs. manual
 
 | Automatic | Manual (optional) |
 |---|---|
 | Listing every entity, with domain counts | Filtering by domain / search text |
-| Sortable table columns | Selecting rows to export vs. "Export All" |
+| Sortable table columns | Choosing selected rows or all within filters |
 | Live entity count + pagination (15/25/50/100 per page) | Choosing export format: CSV / JSON / YAML |
 | Theme follows your Home Assistant theme (light/dark) | Including attributes in the export |
 | Confirming before an export leaves your device | Enabling periodic local snapshots + interval/retention |

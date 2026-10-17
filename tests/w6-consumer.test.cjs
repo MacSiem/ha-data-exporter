@@ -33,7 +33,7 @@ function fixture() {
 }
 for(const format of ['json','csv','yaml']) test(`${format}: actual button opens inertly; Save consumes the exact UTF-8 preview once`,async()=>{
  const f=fixture();try{
-  f.root.querySelector('#formatSelect').value=format;f.root.querySelector('#previewMode').value='all';f.root.querySelector('#exportBtn').dispatchEvent(new f.dom.window.Event('change',{bubbles:true}));f.card._updateStats();f.root.querySelector('#exportBtn').click();await tick();
+  f.root.querySelector('#formatSelect').value=format;f.root.querySelector('#previewMode').value='all';f.card._updateStats();f.root.querySelector('#exportBtn').click();await tick();
   assert.ok(f.dialog());assert.equal(f.anchors.length,0);assert.equal(f.node('private').checked,false);
   const bytes=f.node('preview').textContent;assert.ok(bytes.includes('0'));assert.equal(f.blobs.length,1);
   assert.equal(await f.blobs[0].text(),bytes);assert.equal(Buffer.from(await f.blobs[0].text(),'utf8').equals(Buffer.from(bytes,'utf8')),true);

@@ -1,4 +1,5 @@
 'use strict';
+process.env.TZ='Asia/Tokyo';
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs');
 const {JSDOM,VirtualConsole}=require('jsdom');
 const installNativeDialog=require('./helpers/native-dialog.cjs');
@@ -59,5 +60,21 @@ test('snapshot labels keep seconds and respond immediately to mutable profile an
   assert.equal(f.root.querySelector('#compareBefore'),before);assert.equal(before.value,'0');assert.match(before.options[1].textContent,/02:30:05.*GMT\+2/);assert.match(before.options[2].textContent,/02:30:05.*GMT\+1/);
   assert.deepEqual([...f.root.querySelectorAll('.snapshot-times time')].map(n=>n.getAttribute('datetime')),['2026-10-25T00:30:05.000Z','2026-10-25T01:30:05.000Z']);
   f.hass.locale.time_format='12';f.card.hass=f.hass;assert.match(before.options[1].textContent,/am/i);assert.equal(JSON.stringify(f.card._snapshots),raw);assert.equal(f.reads.length,0);
+ }finally{f.close();}
+});
+test('formatting preserves epoch zero, rejects missing dates and follows the system date language',()=>{
+ const f=fixture();try{
+  assert.match(f.card._displayTimestamp(0),/1970.*09:00:00/);assert.equal(f.card._displayTimestamp(null),'—');assert.equal(f.card._displayTimestamp('old'),'—');
+  f.hass.locale.language='pl-PL';f.hass.locale.date_format='system';f.card.hass=f.hass;
+  const raw='2026-10-25T00:30:05Z',expected=new Intl.DateTimeFormat(f.dom.window.navigator.language,{timeZone:'Asia/Tokyo',year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23',timeZoneName:'shortOffset'}).format(Date.parse(raw));
+  assert.equal(f.card._displayTimestamp(raw),expected);assert.equal(f.reads.length,0);
+ }finally{f.close();}
+});
+test('full HA locale sorts registry names naturally and updates an expanded history without a read',async()=>{
+ const f=fixture(async({type})=>type.includes('area_registry')?[{area_id:'ten',name:'Area 10'},{area_id:'two',name:'Area 2'}]:[]);try{
+  f.root.querySelector('#addFilter').click();await f.settle();assert.deepEqual([...f.root.querySelector('#areaFilter').options].slice(2).map(n=>n.textContent),['Area 2','Area 10']);
+  const host=f.dom.window.document.createElement('div');f.root.append(host);f.card._renderHistory(host,[{time:'2026-10-25T00:30:05Z',state:'0'}],'sensor.two');assert.match(host.textContent,/09:30:05/);const count=f.reads.length;
+  f.hass.locale.time_zone='server';f.card.hass=f.hass;assert.match(host.textContent,/02:30:05/);assert.match(host.textContent,/GMT\+2/);assert.equal(f.reads.length,count);
+  f.hass.locale.language='sv-SE';f.card.hass=f.hass;assert.equal(f.card._collator().resolvedOptions().locale,'sv');assert.equal(f.reads.length,count);
  }finally{f.close();}
 });

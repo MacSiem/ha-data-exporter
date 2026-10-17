@@ -1,4 +1,4 @@
-/* HA Tools split — ha-data-exporter v4.2.0 (2026-10-15) — single-tool standalone repo */
+/* HA Tools split — ha-data-exporter v4.3.0 (2026-10-17) — single-tool standalone repo */
 (function() {
 'use strict';
 
@@ -1242,6 +1242,8 @@ class HADataExporter extends HTMLElement {
     } catch (e) {}
 
     const previousLanguage = this._lang;
+    const previousLocale = this._presentationLocale;
+    this._presentationLocale = hass?.locale?.language || hass?.language || navigator.language;
     const nextFormat = createFormatUi.forHass(hass);
     const formatChanged = this._formatUi?.key !== nextFormat.key;
     this._formatUi = nextFormat;
@@ -1308,7 +1310,7 @@ class HADataExporter extends HTMLElement {
       this._refreshSettingsInfo();
       if (this.isConnected && this._snapshotSettings.enabled) this._startAutoSnapshot();
     }
-    if (previousLanguage !== this._lang) this._refreshLocaleControls();
+    if (previousLanguage !== this._lang || previousLocale !== this._presentationLocale) this._refreshLocaleControls();
     else if (formatChanged) this._refreshPresentationTimes();
     else if (identityChanged) this._updateEntities();
     if (now - (this._lastRenderTime || 0) < 10000) {
@@ -3052,7 +3054,7 @@ canvas {
       .card {container-type:inline-size;container-name:data-card;}
       .card [hidden] {display:none!important;}
       .workspace-tabs {display:flex;gap:8px;margin:12px 0;} .workspace-tabs [aria-selected=true]{border-bottom:3px solid var(--primary-color,#2563eb);font-weight:600;}
-      #exportColumns {margin:16px 0;border:1px solid var(--divider-color,#ddd);border-radius:8px;padding:12px;} #columnSummary {min-height:44px;cursor:pointer;} #exportBar {border-top:1px solid var(--divider-color,#ddd);padding:12px 0;} #exportBar #selectionScope{flex:1 1 220px;} #exportColumns #columnControls{display:flex;flex-wrap:wrap;gap:8px;} #columnControls label{display:inline-flex;align-items:center;gap:6px;}
+      #exportColumns {margin:16px 0;border:1px solid var(--divider-color,#ddd);border-radius:8px;padding:12px;} #columnSummary,.snapshot-comparison summary {min-height:44px;cursor:pointer;} #exportBar {border-top:1px solid var(--divider-color,#ddd);padding:12px 0;} #exportBar #selectionScope{flex:1 1 220px;} #exportColumns #columnControls{display:flex;flex-wrap:wrap;gap:8px;} #columnControls label{display:inline-flex;align-items:center;gap:6px;}
       .toolbar {flex-wrap:wrap;} .card button,.card select,.card input[type=text],.feature-controls label,.feature-controls summary {min-height:44px;} .card button,.intro-banner .intro-dismiss {min-width:44px;min-height:44px;} .intro-banner{padding-right:72px;} .feature-controls summary {display:flex;align-items:center;}
       .feature-controls {display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0;}
       .feature-controls label {display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0;max-width:100%;}
@@ -3132,7 +3134,9 @@ canvas {
   }
 
   _collator() {
-    return new Intl.Collator(this._hass?.locale?.language || this._hass?.language || navigator.language, {numeric:true,sensitivity:'base'});
+    const language=this._hass?.locale?.language || this._hass?.language || navigator.language;
+    if(this._collationLanguage!==language){this._collationLanguage=language;this._nameCollator=new Intl.Collator(language,{numeric:true,sensitivity:'base'});}
+    return this._nameCollator;
   }
 
   _displayTimestamp(value) {
@@ -3152,12 +3156,13 @@ canvas {
 
   _refreshActiveFilters() {
     const host=this.shadowRoot.getElementById('activeFilters');if(!host)return;
+    const focusedKey=this.shadowRoot.activeElement?.dataset.clearFilter;
     host.replaceChildren();const L=this._lang==='pl';
     for(const [key,field,id,label] of [['domain','_filterDomain','domainFilter',L?'Domena':'Domain'],['search','_filterSearch','searchFilter',L?'Szukaj':'Search'],['area','_filterArea','areaFilter',L?'Obszar':'Area'],['device','_filterDevice','deviceFilter',L?'Urządzenie':'Device']]) {
       const value=this[field];if(!value||value==='all')continue;
       const control=this.shadowRoot.getElementById(id),text=control.selectedOptions?.[0]?.textContent||value;
       const button=document.createElement('button');button.type='button';button.dataset.clearFilter=key;button.textContent=`${label}: ${text} ×`;button.setAttribute('aria-label',`${L?'Usuń filtr':'Remove filter'}: ${label}: ${text}`);
-      button.addEventListener('click',()=>{this[field]=key==='search'?'':'all';control.value=this[field];this._currentPage=0;this._updateEntities();control.focus();});host.append(button);
+      button.addEventListener('click',()=>{this[field]=key==='search'?'':'all';control.value=this[field];this._currentPage=0;this._updateEntities();control.focus();});host.append(button);if(key===focusedKey)button.focus({preventScroll:true});
     }
   }
 
@@ -3183,6 +3188,7 @@ canvas {
       if(entries) Array.from(entries.values()).sort((a,b)=>this._collator().compare(String(a.name_by_user||a.name||a.id||a.area_id),String(b.name_by_user||b.name||b.id||b.area_id))).forEach(entry=>add(name === 'area' ? entry.area_id : entry.id,entry.name_by_user||entry.name||entry.id||entry.area_id));
       select.value=this[field];select.disabled=!metadata;
     }
+    for(const [id,label] of [['domainFilter',L?'Domena':'Domain'],['formatSelect',L?'Format pliku':'File format']])this.shadowRoot.getElementById(id)?.setAttribute('aria-label',label);
     const retry=this.shadowRoot.getElementById('retryRegistryFilters');if(retry)retry.hidden=this._registryStatus!=='unavailable';
     const status=this.shadowRoot.getElementById('registryStatus');if(status)status.textContent=metadata?'':this._registryStatus==='idle'?(L?'Wczytaj rejestry HA, aby filtrować obszary i urządzenia.':'Load HA registries to filter areas and devices.'):this._registryStatus==='unavailable'?(L?'Rejestry niedostępne; filtry obszarów i urządzeń wyłączone.':'Registries unavailable; area and device filters disabled.'):(L?'Pobieranie rejestrów…':'Loading registries…');
   }
@@ -3231,17 +3237,21 @@ canvas {
 
   _renderSnapshotComparison(rows, valid) {
     const host=this.shadowRoot.getElementById('snapshotComparison');if(!host)return;
+    const sourceState=host.querySelector('[data-comparison-source]');
+    const sourceOpen=!!sourceState?.open,sourceFocused=this.shadowRoot.activeElement===sourceState?.querySelector('summary');
     const pair=this._comparison.map(i=>i===null?'':`${i}:${this._snapshotChoices()[i]?.ts||''}`).join('|');
-    if(pair!==this._comparisonViewPair){this._comparisonViewPair=pair;this._comparisonPage=0;}
+    const samePair=pair===this._comparisonViewPair;
+    if(!samePair){this._comparisonViewPair=pair;this._comparisonPage=0;}
     host.replaceChildren();host.hidden=!valid;if(!valid)return;
     const L=this._lang==='pl',epoch=this._identityEpoch,before=this._snapshotChoices()[this._comparison[0]],after=this._snapshotChoices()[this._comparison[1]];
+    const sourceDetails=document.createElement('details'),sourceSummary=document.createElement('summary');sourceDetails.dataset.comparisonSource='';sourceSummary.textContent=L?'Źródło: zapisy w tej przeglądarce · tylko stany':'Source: snapshots in this browser · state only';sourceDetails.append(sourceSummary);
     const note=document.createElement('p');note.textContent=L?'Wyłącznie stany zapisane w tej przeglądarce. Atrybuty nie są porównywane; brak encji nie jest zerem.':'State only, saved in this browser. Attributes are not compared; an absent entity is not zero.';
     const times=document.createElement('p');times.className='snapshot-times';
     for (const [label,snapshot] of [[L?'Przed':'Before',before],[L?'Po':'After',after]]) {
       if(times.childNodes.length)times.append(document.createTextNode(' · '));
       times.append(document.createTextNode(label+': '));const time=document.createElement('time');time.dateTime=snapshot.ts;time.textContent=this._displayTimestamp(snapshot.ts);times.append(time);
     }
-    host.append(note,times);
+    sourceDetails.append(note);sourceDetails.open=samePair&&sourceOpen;host.append(times,sourceDetails);if(samePair&&sourceFocused)sourceSummary.focus({preventScroll:true});
     if(!rows.length){const empty=document.createElement('p');empty.setAttribute('role','status');empty.textContent=L?'Brak zmienionych stanów.':'No changed states.';host.append(empty);return;}
     const pageSize=20,pages=Math.ceil(rows.length/pageSize);this._comparisonPage=Math.max(0,Math.min(this._comparisonPage||0,pages-1));
     const table=document.createElement('table');table.setAttribute('aria-label',L?'Zmiany stanów snapshotów':'Snapshot state changes');

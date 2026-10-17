@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Maintain exact local W6/W4 factory embedding. Default is read-only --check.
+"""Maintain exact local W6/W4/presentation factory embedding. Default is read-only --check.
 
 Update shared sources and provenance after reviewing upstream changes, then use
---write to refresh the two marked blocks. No network or package dependency.
+--write to refresh the marked blocks. No network or package dependency.
 """
 import argparse
 import hashlib
@@ -51,7 +51,7 @@ def main():
         raise SystemExit('\n'.join(problems))
     if args.write:
         target.write_text(text)
-    print('Exact W6/W4 factory bytes and provenance matched.')
+    print('Exact W6/W4/presentation factory bytes and provenance matched.')
 
 
 if __name__ == '__main__':

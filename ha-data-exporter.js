@@ -2,6 +2,95 @@
 (function() {
 'use strict';
 
+// BEGIN VENDORED ha-tools-format.js
+// Localized presentation; raw values remain available to callers for details/export.
+function createFormatUi(language = 'en', timeZone = 'UTC', preferences = {}) {
+  const hourCycle = preferences.hourCycle || 'h23';
+  const dateLanguage = preferences.dateLanguage || language;
+  const stamp = value => typeof value === 'number' ? (Number.isFinite(value) ? value : NaN) : typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) ? Date.parse(value) : NaN;
+  const localized = (value, options, locale = language) => {
+    const time = stamp(value);
+    if (!Number.isFinite(time)) return null;
+    try { return new Intl.DateTimeFormat(locale, {timeZone, ...options}).format(time); } catch (_) { return null; }
+  };
+  const clock = (value, withOffset = false) => localized(value, {hour:'2-digit', minute:'2-digit', hourCycle, ...(withOffset ? {timeZoneName:'shortOffset'} : {})});
+  const date = (value, short = false) => localized(value, {day:'numeric', month:'short', ...(short ? {} : {year:'numeric'})}, dateLanguage);
+  const pointLabel = (value, precise = false) => localized(value, {...(precise ? {second:"2-digit"} : {}), year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit', hourCycle, timeZoneName:'shortOffset'}, dateLanguage);
+  const chartLabels = (values, resolution = 'hour') => {
+    const showDate = resolution === 'day' || values.length > 1 && stamp(values.at(-1)) - stamp(values[0]) >= 86400000;
+    const labels = values.map(value => resolution === 'day' ? date(value, true) : `${showDate ? date(value, true) + ' ' : ''}${clock(value)}`);
+    const counts = new Map();
+    for (const label of labels) counts.set(label, (counts.get(label) || 0) + 1);
+    return labels.map((label, index) => counts.get(label) < 2 ? label : resolution === 'day' ? pointLabel(values[index])
+      : `${showDate ? date(values[index], true) + ' ' : ''}${clock(values[index], true)}`);
+  };
+  const key = JSON.stringify([language, timeZone, hourCycle, dateLanguage]);
+  const numbers = new Intl.NumberFormat(language);
+  const plurals = new Intl.PluralRules(language);
+  const count = (value, forms) => `${numbers.format(value)} ${forms[plurals.select(value)] || forms.other}`;
+  const dateTime = value => {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T/.test(value)) return null;
+    const time = Date.parse(value);
+    if (!Number.isFinite(time)) return null;
+    try { return new Intl.DateTimeFormat(dateLanguage, {timeZone, dateStyle:'medium', timeStyle:'short', hourCycle}).format(new Date(time)); }
+    catch (_) { return null; }
+  };
+  const range = (from, to) => {
+    const first = Date.parse(from), last = Date.parse(to);
+    if (!Number.isFinite(first) || !Number.isFinite(last) || last < first) return null;
+    try {
+      const day = new Intl.DateTimeFormat(dateLanguage, {timeZone, dateStyle:'medium'});
+      const clock = new Intl.DateTimeFormat(language, {timeZone, hour:'2-digit', minute:'2-digit', hourCycle});
+      return day.format(first) === day.format(last)
+        ? `${day.format(first)} (${clock.format(first)}–${clock.format(last)})`
+        : `${dateTime(from)} – ${dateTime(to)}`;
+    } catch (_) { return null; }
+  };
+  const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const periodMarkup = ({start, end, label, source, measured, expected, unit, details = '', sourceTimeZone = ''}) => {
+    const local = range(start, end);
+    if (!local) return '';
+    const coverage = typeof measured === 'number' && Number.isFinite(measured) && typeof expected === 'number' && Number.isFinite(expected)
+      ? `${numbers.format(measured)}/${numbers.format(expected)} ${unit}` : '';
+    const pl = String(language).startsWith('pl');
+    return `<div class="energy-period-v4" style="overflow-wrap:anywhere"><p data-energy-period-summary>${[source, label, local, coverage, timeZone].filter(Boolean).map(escape).join(' · ')}</p><details data-energy-period-details data-energy-period-key="${escape(start + '|' + end)}"><summary style="min-height:44px;box-sizing:border-box;padding:12px 0;display:list-item;list-style-position:inside;cursor:pointer">${pl ? 'Źródło i szczegóły czasu' : 'Source and time details'}</summary><p>${escape(details)}</p>${sourceTimeZone && sourceTimeZone !== timeZone ? `<p>${escape(pl ? 'Strefa pomiarów i granic okresu' : 'Measurement calendar time zone')}: ${escape(sourceTimeZone)}</p>` : ''}<p>UTC: ${escape(start)} — ${escape(end)}</p></details></div>`;
+  };
+  const capturePeriods = (root, previous, current) => {
+    if (!previous || ['epoch','connection','user'].some(key => previous[key] !== current[key])) return [];
+    return [...root.querySelectorAll('[data-energy-period-key]')].map(element => ({
+      key:element.dataset.energyPeriodKey, open:element.open, focused:root.activeElement === element.querySelector('summary')
+    }));
+  };
+  const restorePeriods = (root, records) => {
+    for (const element of root.querySelectorAll('[data-energy-period-key]')) {
+      const record = records.find(row => row.key === element.dataset.energyPeriodKey);
+      if (!record) continue;
+      element.open = record.open;
+      if (record.focused) element.querySelector('summary')?.focus({preventScroll:true});
+    }
+  };
+  return {timeZone, key, clock, date, pointLabel, chartLabels, number:(value, options)=>options ? new Intl.NumberFormat(language, options).format(value) : numbers.format(value), count, dateTime, range, periodMarkup, capturePeriods, restorePeriods};
+}
+// Presentation follows the HA profile; measurement and tariff calendars remain separate.
+createFormatUi.forHass = hass => {
+  const locale = hass?.locale || {};
+  const systemLanguage = typeof navigator !== 'undefined' ? navigator.language : undefined;
+  const language = locale.language || hass?.language || systemLanguage || 'en';
+  const validZone = value => {
+    if (typeof value !== 'string' || !(value === 'UTC' || value.includes('/')) || /^[+-]/.test(value)) return null;
+    try { new Intl.DateTimeFormat('en', {timeZone:value}).format(0); return value; } catch (_) { return null; }
+  };
+  let systemZone;
+  try { systemZone = validZone(Intl.DateTimeFormat().resolvedOptions().timeZone); } catch (_) {}
+  const serverZone = validZone(hass?.config?.time_zone);
+  const timeZone = (locale.time_zone === 'server' ? serverZone : systemZone) || serverZone || 'UTC';
+  const clockLanguage = locale.time_format === 'system' ? systemLanguage || language : language;
+  const hourCycle = locale.time_format === '12' ? 'h12' : locale.time_format === '24' ? 'h23'
+    : new Intl.DateTimeFormat(clockLanguage, {hour:'numeric'}).resolvedOptions().hourCycle;
+  return createFormatUi(language, timeZone, {hourCycle, dateLanguage:locale.date_format === 'system' ? systemLanguage || language : language});
+};
+// END VENDORED ha-tools-format.js
+
 // BEGIN VENDORED ha-tools-export.js
 /**
  * W6 export dialog. Pure ES module; vendor this factory INSIDE each consumer's
@@ -1153,6 +1242,9 @@ class HADataExporter extends HTMLElement {
     } catch (e) {}
 
     const previousLanguage = this._lang;
+    const nextFormat = createFormatUi.forHass(hass);
+    const formatChanged = this._formatUi?.key !== nextFormat.key;
+    this._formatUi = nextFormat;
     const identity = h => JSON.stringify([h?.user?.id || null, !!h?.user?.is_admin, !!h?.user?.is_owner]);
     const identityChanged = identity(this._hass) !== identity(hass) || this._hass?.connection !== hass?.connection;
     if (identityChanged) {
@@ -1175,7 +1267,8 @@ class HADataExporter extends HTMLElement {
       this._snapshotSettings = { enabled: false, interval: 60, maxSnapshots: 50 };
       if (hass) { this._loadSnapshotSettings(); this._loadSnapshots(); }
     }
-    if (hass?.language) this._lang = hass.language.startsWith('pl') ? 'pl' : 'en';
+    const language = hass?.locale?.language || hass?.language;
+    if (language) this._lang = language.startsWith('pl') ? 'pl' : 'en';
     this._hass = hass;
     this._bindExportConnection(hass?.connection);
     this._syncExportContext();
@@ -1216,6 +1309,7 @@ class HADataExporter extends HTMLElement {
       if (this.isConnected && this._snapshotSettings.enabled) this._startAutoSnapshot();
     }
     if (previousLanguage !== this._lang) this._refreshLocaleControls();
+    else if (formatChanged) this._refreshPresentationTimes();
     else if (identityChanged) this._updateEntities();
     if (now - (this._lastRenderTime || 0) < 10000) {
       if (!this._renderScheduled) {
@@ -1459,7 +1553,7 @@ class HADataExporter extends HTMLElement {
       }
       valA = a[this._sortBy] || '';
       valB = b[this._sortBy] || '';
-      const cmp = String(valA).localeCompare(String(valB), undefined, { numeric: true });
+      const cmp = this._collator().compare(String(valA), String(valB));
       return this._sortAsc ? cmp : -cmp;
     });
 
@@ -2191,7 +2285,7 @@ canvas {
               <option value="yaml" ${this._config.default_format === 'yaml' ? 'selected' : ''}>YAML</option>
             </select>
             <button class="btn btn-primary btn-sm" id="exportBtn" disabled>${this._t.exportSelected} (0)</button>
-            <button class="btn btn-secondary btn-sm" id="exportAllBtn">${this._t.exportAll}</button><label class="attrs-toggle-label"><input type="checkbox" id="includeAttrs" aria-label="${this._t.attributes}" ${this._config && this._config.show_attributes === false ? '' : 'checked'} class="attrs-toggle-input" /> ${this._t.attributes}</label>
+<label class="attrs-toggle-label"><input type="checkbox" id="includeAttrs" aria-label="${this._t.attributes}" ${this._config && this._config.show_attributes === false ? '' : 'checked'} class="attrs-toggle-input" /> ${this._t.attributes}</label>
           </div>
           <div class="snapshot-bar" style="display:flex;align-items:center;gap:8px 12px;padding:8px 16px;background:var(--bento-bg,#f8fafc);border:1px solid var(--bento-border,#e2e8f0);border-radius:8px;margin:8px 0;font-size:12px;flex-wrap:wrap;">
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:500;">
@@ -2247,7 +2341,6 @@ canvas {
     const searchFilter = this.shadowRoot.getElementById('searchFilter');
     const selectAll = this.shadowRoot.getElementById('selectAll');
     const exportBtn = this.shadowRoot.getElementById('exportBtn');
-    const exportAllBtn = this.shadowRoot.getElementById('exportAllBtn');
 
     // Settings info bar button
     this.shadowRoot.getElementById('deGoSettingsBtn')?.addEventListener('click', () => {
@@ -2356,8 +2449,9 @@ canvas {
       this._syncExportContext();
     });
 
-    exportBtn.addEventListener('click', () => this._export('selected'));
-    exportAllBtn.addEventListener('click', () => this._export('all'));
+    exportBtn.addEventListener('click', () => this._export(this.shadowRoot.getElementById('previewMode').value));
+    this.shadowRoot.getElementById('previewMode').addEventListener('change', () => this._updateStats());
+    this.shadowRoot.getElementById('formatSelect').addEventListener('change', () => this._refreshColumnSummary());
   }
 
   _currentPage = 0;
@@ -2466,8 +2560,8 @@ canvas {
           const last10 = snapHistory.slice(-10).reverse();
           attrHtml += '<div class="history-section"><div class="history-title">\u{1F4BE} ' + this._t.snapshotsTitle + ' (' + snapHistory.length + ' ' + this._t.snapshots + ')</div><div class="history-list">';
           last10.forEach(h => {
-            const t = new Date(h.ts).toLocaleString();
-            attrHtml += '<div class="history-item"><span class="history-time">' + t + '</span><span class="history-state">' + _esc(h.state) + '</span><span style="font-size:11px;color:var(--bento-text-secondary,#64748b);">' + _esc(h.attrs) + ' ' + this._t.attrs + '</span></div>';
+            const t = this._displayTimestamp(h.ts);
+            attrHtml += '<div class="history-item"><time class="history-time" datetime="' + _esc(h.ts) + '">' + _esc(t) + '</time><span class="history-state">' + _esc(h.state) + '</span><span style="font-size:11px;color:var(--bento-text-secondary,#64748b);">' + _esc(h.attrs) + ' ' + this._t.attrs + '</span></div>';
           });
           attrHtml += '</div></div>';
         }
@@ -2547,8 +2641,10 @@ canvas {
     const exportBtn = this.shadowRoot.getElementById('exportBtn');
     if (!exportBtn) return;
     const count = this._getSelectedEntities().length;
-    exportBtn.textContent = `${this._t.exportSelected} (${count})`;
-    exportBtn.disabled = count === 0;
+    exportBtn.textContent = this._lang === 'pl' ? 'Podgląd i zapis' : 'Preview and save';
+    exportBtn.disabled = (this.shadowRoot.getElementById('previewMode')?.value === 'all' ? this._getFilteredEntities().length : count) === 0;
+    this._refreshActiveFilters();
+    this._refreshColumnSummary();
     const note = this.shadowRoot.getElementById('selectionScope');
     if (note) { const visible = new Set(this._getFilteredEntities().map(e => e.entity_id)); const outside = this._getSelectedEntities().filter(e => !visible.has(e.entity_id)).length; note.textContent = this._lang === 'pl' ? `Zaznaczone: ${count}; poza filtrami: ${outside}. Eksport zaznaczonych obejmuje także encje poza filtrami. Eksportuj wszystko używa bieżących filtrów.` : `Selected: ${count}; outside filters: ${outside}. Selected export includes entities outside filters. Export All uses current filters.`; }
   }
@@ -2692,7 +2788,7 @@ canvas {
     this._syncExportContext();
     const chosen = this.shadowRoot.getElementById('formatSelect')?.value;
     const format = ['json', 'csv', 'yaml'].includes(chosen) ? chosen : 'csv';
-    const opener = this.shadowRoot.activeElement || this.shadowRoot.getElementById(mode === 'selected' ? 'exportBtn' : mode === 'diff' ? 'exportDiff' : 'exportAllBtn');
+    const opener = this.shadowRoot.activeElement || this.shadowRoot.getElementById(mode === 'diff' ? 'exportDiff' : 'exportBtn');
     this._exportDialog = createExportDialog({
       root: this.shadowRoot, createUiV3,
       getLanguage: () => this._lang,
@@ -2931,7 +3027,8 @@ canvas {
   async _ensureRegistryMetadata() {
     if (this._registryMetadata) return this._registryMetadata;
     if (this._registryPromise) return this._registryPromise;
-    if (!this._hass?.callWS) return null;
+    if (!this._hass?.callWS) { this._registryStatus='unavailable'; this._refreshRegistryControls(); return null; }
+    this._registryStatus='loading'; this._refreshRegistryControls();
     const epoch = this._identityEpoch;
     const promise = this._loadRegistryMetadata().then(metadata => {
       if (epoch !== this._identityEpoch || !this._hass) return null;
@@ -2953,6 +3050,9 @@ canvas {
     const style = document.createElement('style');
     style.textContent = `
       .card {container-type:inline-size;container-name:data-card;}
+      .card [hidden] {display:none!important;}
+      .workspace-tabs {display:flex;gap:8px;margin:12px 0;} .workspace-tabs [aria-selected=true]{border-bottom:3px solid var(--primary-color,#2563eb);font-weight:600;}
+      #exportColumns {margin:16px 0;border:1px solid var(--divider-color,#ddd);border-radius:8px;padding:12px;} #columnSummary {min-height:44px;cursor:pointer;} #exportBar {border-top:1px solid var(--divider-color,#ddd);padding:12px 0;} #exportBar #selectionScope{flex:1 1 220px;} #exportColumns #columnControls{display:flex;flex-wrap:wrap;gap:8px;} #columnControls label{display:inline-flex;align-items:center;gap:6px;}
       .toolbar {flex-wrap:wrap;} .card button,.card select,.card input[type=text],.feature-controls label,.feature-controls summary {min-height:44px;} .card button,.intro-banner .intro-dismiss {min-width:44px;min-height:44px;} .intro-banner{padding-right:72px;} .feature-controls summary {display:flex;align-items:center;}
       .feature-controls {display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0;}
       .feature-controls label {display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0;max-width:100%;}
@@ -2979,12 +3079,36 @@ canvas {
     this.shadowRoot.append(style);
     const controls = document.createElement('section');
     controls.className = 'feature-controls';
+    controls.id = 'registryFilters';
+    controls.hidden = true;
     controls.innerHTML = `<label><span data-feature-label="area"></span><select id="areaFilter"></select></label>
-      <label><span data-feature-label="device"></span><select id="deviceFilter"></select></label><button type="button" id="clearFilters"></button><button type="button" id="loadRegistryFilters"></button><span id="registryStatus" role="status"></span>
-      <details><summary data-feature-label="columns"></summary><div id="columnControls"></div></details>
-      <label><span data-feature-label="scope"></span><select id="previewMode"><option value="all"></option><option value="selected"></option><option value="diff"></option></select></label>
-      <button type="button" id="previewExport"></button><span id="selectionScope"></span>`;
-    this.shadowRoot.querySelector('.toolbar').after(controls);
+      <label><span data-feature-label="device"></span><select id="deviceFilter"></select></label><button type="button" id="clearFilters"></button><button type="button" id="retryRegistryFilters" hidden></button><span id="registryStatus" role="status"></span>`;
+    const toolbar=this.shadowRoot.querySelector('.toolbar');
+    const exportPanel=document.createElement('section');exportPanel.id='exportWorkspace';exportPanel.setAttribute('role','tabpanel');exportPanel.setAttribute('aria-labelledby','exportTab');
+    const records=document.createElement('section');records.id='recordsWorkspace';records.setAttribute('role','tabpanel');records.setAttribute('aria-labelledby','recordsTab');
+    const tabs=document.createElement('div');tabs.setAttribute('role','tablist');tabs.className='workspace-tabs';
+    tabs.innerHTML='<button type="button" id="exportTab" role="tab" aria-controls="exportWorkspace"></button><button type="button" id="recordsTab" role="tab" aria-controls="recordsWorkspace"></button>';
+    toolbar.before(tabs,exportPanel,records);
+    const heading=document.createElement('h3');heading.id='chooseEntities';
+    const add=document.createElement('button');add.type='button';add.id='addFilter';add.setAttribute('aria-controls','registryFilters');add.setAttribute('aria-expanded','false');toolbar.append(add);
+    const chips=document.createElement('div');chips.id='activeFilters';chips.className='feature-controls';
+    const columns=document.createElement('details');columns.id='exportColumns';columns.innerHTML='<summary id="columnSummary"></summary><div id="columnControls"></div>';
+    columns.append(this.shadowRoot.getElementById('formatSelect'),this.shadowRoot.getElementById('includeAttrs').parentElement);
+    const bar=document.createElement('section');bar.id='exportBar';bar.className='feature-controls';
+    bar.innerHTML='<label><span data-feature-label="scope"></span><select id="previewMode"><option value="selected"></option><option value="all"></option></select></label><span id="selectionScope" role="status"></span>';
+    bar.append(this.shadowRoot.getElementById('exportBtn'));
+    exportPanel.append(heading,toolbar,chips,controls,this.shadowRoot.querySelector('.table-container'),this.shadowRoot.getElementById('pagination'),columns,bar);
+    records.append(this.shadowRoot.querySelector('.snapshot-bar'));
+    const switchTab = name => {
+      this._workspaceTab=name;exportPanel.hidden=name!=='export';records.hidden=name!=='records';
+      for(const [id,key] of [['exportTab','export'],['recordsTab','records']]) {const button=this.shadowRoot.getElementById(id);button.setAttribute('aria-selected',String(name===key));button.tabIndex=name===key?0:-1;}
+    };
+    for(const [id,name] of [['exportTab','export'],['recordsTab','records']]) {
+      const button=this.shadowRoot.getElementById(id);button.addEventListener('click',()=>switchTab(name));
+      button.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const next=event.key==='Home'?'export':event.key==='End'?'records':this._workspaceTab==='export'?'records':'export';switchTab(next);this.shadowRoot.getElementById(next+'Tab').focus();});
+    }
+    switchTab(this._workspaceTab||'export');
+    add.addEventListener('click',()=>{controls.hidden=!controls.hidden;add.setAttribute('aria-expanded',String(!controls.hidden));if(!controls.hidden&&this._registryStatus==='idle')this._ensureRegistryMetadata();});
     const compare = document.createElement('section');
     compare.className = 'feature-controls';
     compare.innerHTML = `<span data-feature-label="comparison"></span><label><span data-feature-label="before"></span><select id="compareBefore"></select></label><label><span data-feature-label="after"></span><select id="compareAfter"></select></label><button type="button" id="exportDiff"></button><button type="button" id="loadLegacySnapshots"></button><span id="diffCount" role="status"></span>`;
@@ -2994,18 +3118,47 @@ canvas {
     const comparison=document.createElement('section');comparison.id='snapshotComparison';comparison.className='snapshot-comparison';comparison.hidden=true;compare.after(comparison);
     comparison.after(preview);
     for (const [id, field] of [['areaFilter','_filterArea'],['deviceFilter','_filterDevice']]) this.shadowRoot.getElementById(id).addEventListener('change', e => { this[field] = e.target.value; this._currentPage=0; this._updateEntities(); });
-    this.shadowRoot.getElementById('loadRegistryFilters').addEventListener('click', () => { if (this._registryPromise) return; this._registryMetadata=null; this._registryStatus='loading'; this._refreshRegistryControls(); this._ensureRegistryMetadata(); });
+    this.shadowRoot.getElementById('retryRegistryFilters').addEventListener('click', () => { if (this._registryPromise) return; this._registryMetadata=null; this._registryStatus='loading'; this._refreshRegistryControls(); this._ensureRegistryMetadata(); });
     this.shadowRoot.getElementById('clearFilters').addEventListener('click', () => {
       this._filterDomain=this._filterArea=this._filterDevice='all'; this._filterSearch=''; this._currentPage=0;
       for (const id of ['domainFilter','areaFilter','deviceFilter']) this.shadowRoot.getElementById(id).value='all';
       this.shadowRoot.getElementById('searchFilter').value=''; this._updateEntities();
     });
-    controls.querySelector('details').addEventListener('toggle', event => { if (event.currentTarget.open) this._refreshColumnControls(); });
-    this.shadowRoot.getElementById('previewExport').addEventListener('click', () => this._export(this.shadowRoot.getElementById('previewMode').value, true));
+    columns.addEventListener('toggle', event => { if (event.currentTarget.open) this._refreshColumnControls(); });
     this.shadowRoot.getElementById('exportDiff').addEventListener('click', () => this._export('diff'));
     this.shadowRoot.getElementById('loadLegacySnapshots').addEventListener('click', () => this._loadLegacyForComparison());
     for (const [id,index] of [['compareBefore',0],['compareAfter',1]]) this.shadowRoot.getElementById(id).addEventListener('change', e => { this._comparison[index] = e.target.value === '' ? null : Number(e.target.value); this._refreshComparisonControls(); });
     this._refreshRegistryControls(); this._refreshColumnControls(); this._refreshComparisonControls(); this._refreshFeatureLabels();
+  }
+
+  _collator() {
+    return new Intl.Collator(this._hass?.locale?.language || this._hass?.language || navigator.language, {numeric:true,sensitivity:'base'});
+  }
+
+  _displayTimestamp(value) {
+    return (this._formatUi || createFormatUi.forHass(this._hass)).pointLabel(value, true) || '—';
+  }
+
+  _refreshPresentationTimes() {
+    this._refreshComparisonControls();
+    this.shadowRoot.querySelectorAll('.history-time[datetime]').forEach(node=>{node.textContent=this._displayTimestamp(node.getAttribute('datetime'));});
+  }
+
+  _refreshColumnSummary() {
+    const summary=this.shadowRoot.getElementById('columnSummary');if(!summary)return;
+    const L=this._lang==='pl',count=(this._exportColumns??this._availableColumns()).length,format=this.shadowRoot.getElementById('formatSelect')?.value?.toUpperCase()||'CSV';
+    summary.textContent=L?`2 · Kolumny i format · ${count} kolumn · ${format} · Prywatne dane: wyłączone · Zmień`:`2 · Columns and format · ${count} columns · ${format} · Private fields: off · Change`;
+  }
+
+  _refreshActiveFilters() {
+    const host=this.shadowRoot.getElementById('activeFilters');if(!host)return;
+    host.replaceChildren();const L=this._lang==='pl';
+    for(const [key,field,id,label] of [['domain','_filterDomain','domainFilter',L?'Domena':'Domain'],['search','_filterSearch','searchFilter',L?'Szukaj':'Search'],['area','_filterArea','areaFilter',L?'Obszar':'Area'],['device','_filterDevice','deviceFilter',L?'Urządzenie':'Device']]) {
+      const value=this[field];if(!value||value==='all')continue;
+      const control=this.shadowRoot.getElementById(id),text=control.selectedOptions?.[0]?.textContent||value;
+      const button=document.createElement('button');button.type='button';button.dataset.clearFilter=key;button.textContent=`${label}: ${text} ×`;button.setAttribute('aria-label',`${L?'Usuń filtr':'Remove filter'}: ${label}: ${text}`);
+      button.addEventListener('click',()=>{this[field]=key==='search'?'':'all';control.value=this[field];this._currentPage=0;this._updateEntities();control.focus();});host.append(button);
+    }
   }
 
   _refreshFeatureLabels() {
@@ -3013,9 +3166,9 @@ canvas {
     const labels = L ? {area:'Obszar',device:'Urządzenie',columns:'Kolumny i kolejność eksportu',scope:'Zakres podglądu',comparison:'Porównanie snapshotów tylko w tej przeglądarce (wyłącznie stan)',before:'Przed',after:'Po'}
       : {area:'Area',device:'Device',columns:'Export columns and order',scope:'Preview scope',comparison:'Snapshots in this browser only (state comparison)',before:'Before',after:'After'};
     this.shadowRoot.querySelectorAll('[data-feature-label]').forEach(node=>{node.textContent=labels[node.dataset.featureLabel];});
-    for (const [id,text] of [['loadRegistryFilters',L?'Wczytaj filtry obszarów i urządzeń':'Load area and device filters'],['loadLegacySnapshots',L?'Otwórz wcześniejsze zapisy lokalne':'Open earlier local snapshots'],['clearFilters',L?'Wyczyść filtry':'Clear filters'],['previewExport',L?'Podgląd eksportu':'Preview export'],['exportDiff',L?'Eksport zmian stanów':'Export state changes']]) {const node=this.shadowRoot.getElementById(id);if(node)node.textContent=text;}
+    for (const [id,text] of [['retryRegistryFilters',L?'Spróbuj ponownie':'Try again'],['addFilter',L?'+ Filtr':'+ Filter'],['chooseEntities',L?'1 · Wybierz encje':'1 · Choose entities'],['exportTab',L?'Eksport':'Export'],['recordsTab',L?'Zapisy i porównanie':'Records and comparison'],['loadLegacySnapshots',L?'Otwórz wcześniejsze zapisy lokalne':'Open earlier local snapshots'],['clearFilters',L?'Wyczyść filtry':'Clear filters'],['previewExport',L?'Podgląd eksportu':'Preview export'],['exportDiff',L?'Eksport zmian stanów':'Export state changes']]) {const node=this.shadowRoot.getElementById(id);if(node)node.textContent=text;}
     const options=this.shadowRoot.getElementById('previewMode')?.options;
-    if(options) [L?'Wszystkie w filtrach':'All within filters',L?'Zaznaczone (także poza filtrami)':'Selected (including outside filters)',L?'Zmiany stanów snapshotów':'Snapshot state changes'].forEach((text,i)=>options[i].textContent=text);
+    if(options) [L?'Zaznaczone (także poza filtrami)':'Selected (including outside filters)',L?'Wszystkie w filtrach':'All within filters'].forEach((text,i)=>options[i].textContent=text);
     this._refreshRegistryControls(); this._refreshComparisonControls();
   }
 
@@ -3027,9 +3180,10 @@ canvas {
       select.replaceChildren();
       const add=(value,text)=>{const option=document.createElement('option');option.value=value;option.textContent=text;select.append(option);};
       add('all',L?'Wszystkie':'All');add('__none__',L?(name==='area'?'Bez obszaru':'Bez urządzenia'):(name==='area'?'No area':'No device'));
-      if(entries) Array.from(entries.values()).sort((a,b)=>String(a.name_by_user||a.name||a.id||a.area_id).localeCompare(String(b.name_by_user||b.name||b.id||b.area_id))).forEach(entry=>add(name === 'area' ? entry.area_id : entry.id,entry.name_by_user||entry.name||entry.id||entry.area_id));
+      if(entries) Array.from(entries.values()).sort((a,b)=>this._collator().compare(String(a.name_by_user||a.name||a.id||a.area_id),String(b.name_by_user||b.name||b.id||b.area_id))).forEach(entry=>add(name === 'area' ? entry.area_id : entry.id,entry.name_by_user||entry.name||entry.id||entry.area_id));
       select.value=this[field];select.disabled=!metadata;
     }
+    const retry=this.shadowRoot.getElementById('retryRegistryFilters');if(retry)retry.hidden=this._registryStatus!=='unavailable';
     const status=this.shadowRoot.getElementById('registryStatus');if(status)status.textContent=metadata?'':this._registryStatus==='idle'?(L?'Wczytaj rejestry HA, aby filtrować obszary i urządzenia.':'Load HA registries to filter areas and devices.'):this._registryStatus==='unavailable'?(L?'Rejestry niedostępne; filtry obszarów i urządzeń wyłączone.':'Registries unavailable; area and device filters disabled.'):(L?'Pobieranie rejestrów…':'Loading registries…');
   }
 
@@ -3043,6 +3197,7 @@ canvas {
     this._syncExportContext();
     const container=this.shadowRoot.getElementById('columnControls');if(!container)return;
     const L=this._lang==='pl';
+    this._refreshColumnSummary();
     const available=this._availableColumns();
     const selected=this._exportColumns ?? available;
     container.replaceChildren();
@@ -3063,7 +3218,7 @@ canvas {
     for(const [id,index] of [['compareBefore',0],['compareAfter',1]]) {
       const select=this.shadowRoot.getElementById(id);if(!select)continue;
       select.replaceChildren();const empty=document.createElement('option');empty.value='';empty.textContent=L?'Wybierz zapis':'Choose snapshot';select.append(empty);
-      this._snapshotChoices().forEach((snapshot,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=`${i+1}: ${snapshot.ts}`;select.append(option);});
+      this._snapshotChoices().forEach((snapshot,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=`${i+1}: ${this._displayTimestamp(snapshot.ts)}`;select.append(option);});
       select.value=this._comparison[index]===null?'':String(this._comparison[index]);
     }
     const valid=this._comparison.every(i=>i!==null&&!!this._snapshotChoices()[i])&&this._comparison[0]!==this._comparison[1];
@@ -3081,7 +3236,12 @@ canvas {
     host.replaceChildren();host.hidden=!valid;if(!valid)return;
     const L=this._lang==='pl',epoch=this._identityEpoch,before=this._snapshotChoices()[this._comparison[0]],after=this._snapshotChoices()[this._comparison[1]];
     const note=document.createElement('p');note.textContent=L?'Wyłącznie stany zapisane w tej przeglądarce. Atrybuty nie są porównywane; brak encji nie jest zerem.':'State only, saved in this browser. Attributes are not compared; an absent entity is not zero.';
-    const times=document.createElement('p');times.className='snapshot-times';times.textContent=`${L?'Przed':'Before'}: ${before.ts} · ${L?'Po':'After'}: ${after.ts}`;host.append(note,times);
+    const times=document.createElement('p');times.className='snapshot-times';
+    for (const [label,snapshot] of [[L?'Przed':'Before',before],[L?'Po':'After',after]]) {
+      if(times.childNodes.length)times.append(document.createTextNode(' · '));
+      times.append(document.createTextNode(label+': '));const time=document.createElement('time');time.dateTime=snapshot.ts;time.textContent=this._displayTimestamp(snapshot.ts);times.append(time);
+    }
+    host.append(note,times);
     if(!rows.length){const empty=document.createElement('p');empty.setAttribute('role','status');empty.textContent=L?'Brak zmienionych stanów.':'No changed states.';host.append(empty);return;}
     const pageSize=20,pages=Math.ceil(rows.length/pageSize);this._comparisonPage=Math.max(0,Math.min(this._comparisonPage||0,pages-1));
     const table=document.createElement('table');table.setAttribute('aria-label',L?'Zmiany stanów snapshotów':'Snapshot state changes');
@@ -3240,11 +3400,10 @@ canvas {
     }
     let html = '';
     changes.forEach((ch, i) => {
-      const d = new Date(ch.time);
-      const timeStr = d.toLocaleString((this._lang === 'pl' ? 'pl-PL' : 'en-US'), { hour: '2-digit', minute: '2-digit', second: '2-digit', day: '2-digit', month: '2-digit' });
+      const timeStr = this._displayTimestamp(ch.time);
       const isCurrent = i === changes.length - 1;
       html += '<div class="history-item' + (isCurrent ? '' : '') + '">';
-      html += '<span class="history-time">' + timeStr + '</span>';
+      html += '<time class="history-time" datetime="' + _esc(ch.time) + '">' + _esc(timeStr) + '</time>';
       if (i > 0) html += '<span class="history-arrow">\u2192</span>';
       html += '<span class="history-state">' + _esc(ch.state || '?') + '</span>';
       if (isCurrent) html += ' <span style="font-size:10px;color:var(--bento-primary)">(' + this._t.now + ')</span>';

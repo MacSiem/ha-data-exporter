@@ -8,10 +8,16 @@
     "ha-tools-ui.js": {
       "sha256": "029c06206e55abad9aa09dfcf65bb13027ec24ce6a0bfacc45a938891b27254e",
       "supplied_from": "ha-config-auditor/shared/ha-tools-ui.js@4c693fa25fb5e9fb845e0a262bfa1002c950b100"
+    },
+    "ha-tools-format.js": {
+      "sha256": "49e17bcc9e156199a184d0137950a6f170c470c996e443228ffa7b2d82ae2b5a",
+      "supplied_from": "ha-trace-viewer/shared/ha-tools-format.js@877bb50b68097570c92d369d2ef016e5e821303c",
+      "local_extension": "Optional pointLabel(value, precise) adds seconds for adjacent snapshots; profile and time zone policy unchanged."
     }
   },
   "runtime_normalization": {
     "ha-tools-export.js": "Remove only the export keyword of createExportDialog; preserve all other factory bytes.",
-    "ha-tools-ui.js": "Exact factory; omit only trailing Node test export comment/statement."
+    "ha-tools-ui.js": "Exact factory; omit only trailing Node test export comment/statement.",
+    "ha-tools-format.js": "Exact local factory; omit only trailing Node test export comment/statement."
   }
 }

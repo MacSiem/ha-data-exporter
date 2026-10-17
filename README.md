@@ -66,6 +66,15 @@ original representation.
 
 ## Screenshots
 
+![Data Exporter 4.3 export steps and reviewed scope](docs/screenshots/export-flow-4.3-native.png)
+
+*Version 4.3.0 in a real Home Assistant instance, Polish dark theme at 390 px.
+Synthetic QA entities demonstrate the compact columns summary, selected/outside-filter
+counts and one bottom preview action. The Home Assistant profile controls language,
+theme and time presentation. [Capture details](docs/screenshots/native-4.3-provenance.json).*
+
+### Earlier 4.2 comparison reference
+
 | Light | Dark |
 |---|---|
 | ![Data Exporter, light theme](docs/screenshots/card-main-light.png) | ![Data Exporter, dark theme](docs/screenshots/card-main-dark.png) |

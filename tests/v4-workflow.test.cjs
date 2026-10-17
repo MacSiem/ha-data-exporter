@@ -98,3 +98,17 @@ test('entity counts use singular English and Polish forms after filtering',()=>{
   f.change('searchFilter','','input');assert.equal(f.root.querySelector('#stats').textContent,'2 encje');assert.equal(f.reads.length,0);
  }finally{f.close();}
 });
+test('saved comparison counts use singular and Polish few forms without changing its rows',()=>{
+ const f=fixture();try{
+  f.capture();f.hass.states['sensor.two'].state='3';f.advance(6000);f.capture();f.change('compareBefore','0');f.change('compareAfter','1');assert.match(f.root.querySelector('#diffCount').textContent,/^1 change;/);
+  f.hass.locale.language='pl-PL';f.card.hass=f.hass;assert.match(f.root.querySelector('#diffCount').textContent,/^1 zmiana;/);
+  for(let i=0;i<3;i++)f.hass.states['sensor.added_'+i]={state:'0',attributes:{}};f.advance(6000);f.capture();f.change('compareAfter','2');assert.match(f.root.querySelector('#diffCount').textContent,/^4 zmiany;/);assert.equal(f.root.querySelectorAll('#snapshotComparison tbody tr').length,4);assert.equal(f.reads.length,0);
+ }finally{f.close();}
+});
+test('collapsed columns have a separate step heading, compact choices and counts before the export scope',()=>{
+ const f=fixture();try{
+  const columns=f.root.querySelector('#exportColumns'),summary=columns.querySelector('summary');assert.match(columns.previousElementSibling.textContent,/2.*Columns and format/);assert.doesNotMatch(summary.textContent,/Columns and format/);assert.match(summary.textContent,/columns.*CSV.*Private.*off.*Change/);
+  assert.equal(f.root.querySelector('#exportBar').firstElementChild.id,'selectionScope');assert.equal(columns.open,false);
+  columns.open=true;f.change('formatSelect','json');const check=f.root.querySelector('#columnControls input[aria-label="entity_id"]');check.click();assert.match(summary.textContent,/JSON/);assert.equal(f.root.querySelector('#columnControls input[aria-label="entity_id"]').checked,false);assert.equal(f.reads.length,0);
+ }finally{f.close();}
+});

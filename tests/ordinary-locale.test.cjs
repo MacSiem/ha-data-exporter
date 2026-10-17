@@ -94,7 +94,7 @@ test('the populated table and export toolbar follow Polish and English without d
   assert.equal(search.placeholder,'Szukaj encji...');
   assert.equal(root.querySelector('th[data-sort="name"]').textContent.trim(),'Nazwa');
   assert.match(root.querySelector('#domainFilter option[value="all"]').textContent,/Wszystkie domeny/);
-  assert.match(root.querySelector('#stats').textContent,/1 encji/);
+  assert.equal(root.querySelector('#stats').textContent,'1 encja');
   assert.equal(root.activeElement,search);assert.equal(search.value,'sensor.qa');
   c.hass={...f.hass,language:'en'};
   assert.equal(root.querySelector('#previewMode option[value=all]').textContent,'All within filters');

@@ -2629,7 +2629,7 @@ canvas {
 
     this._refreshFeatureLabels();
     this._updateStats();
-    stats.textContent = `${entities.length} ${this._t.entities}`;
+    stats.textContent = this._entityCount(entities.length);
     if (focusKey && focused && !focused.isConnected) {
       const next = focusKey.id ? this.shadowRoot.getElementById(focusKey.id)
         : focusKey.entity ? Array.from(this.shadowRoot.querySelectorAll('input[data-entity]')).find(node => node.dataset.entity === focusKey.entity)
@@ -3089,10 +3089,10 @@ canvas {
     const exportPanel=document.createElement('section');exportPanel.id='exportWorkspace';exportPanel.setAttribute('role','tabpanel');exportPanel.setAttribute('aria-labelledby','exportTab');
     const records=document.createElement('section');records.id='recordsWorkspace';records.setAttribute('role','tabpanel');records.setAttribute('aria-labelledby','recordsTab');
     const tabs=document.createElement('div');tabs.setAttribute('role','tablist');tabs.className='workspace-tabs';
-    tabs.innerHTML='<button type="button" id="exportTab" role="tab" aria-controls="exportWorkspace"></button><button type="button" id="recordsTab" role="tab" aria-controls="recordsWorkspace"></button>';
+    tabs.innerHTML='<button type="button" id="exportTab" class="btn btn-primary" role="tab" aria-controls="exportWorkspace"></button><button type="button" id="recordsTab" class="btn btn-secondary" role="tab" aria-controls="recordsWorkspace"></button>';
     toolbar.before(tabs,exportPanel,records);
     const heading=document.createElement('h3');heading.id='chooseEntities';
-    const add=document.createElement('button');add.type='button';add.id='addFilter';add.setAttribute('aria-controls','registryFilters');add.setAttribute('aria-expanded','false');toolbar.append(add);
+    const add=document.createElement('button');add.type='button';add.id='addFilter';add.className='btn btn-secondary btn-sm';add.setAttribute('aria-controls','registryFilters');add.setAttribute('aria-expanded','false');toolbar.append(add);
     const chips=document.createElement('div');chips.id='activeFilters';chips.className='feature-controls';
     const columns=document.createElement('details');columns.id='exportColumns';columns.innerHTML='<summary id="columnSummary"></summary><div id="columnControls"></div>';
     columns.append(this.shadowRoot.getElementById('formatSelect'),this.shadowRoot.getElementById('includeAttrs').parentElement);
@@ -3103,7 +3103,7 @@ canvas {
     records.append(this.shadowRoot.querySelector('.snapshot-bar'));
     const switchTab = name => {
       this._workspaceTab=name;exportPanel.hidden=name!=='export';records.hidden=name!=='records';
-      for(const [id,key] of [['exportTab','export'],['recordsTab','records']]) {const button=this.shadowRoot.getElementById(id);button.setAttribute('aria-selected',String(name===key));button.tabIndex=name===key?0:-1;}
+      for(const [id,key] of [['exportTab','export'],['recordsTab','records']]) {const button=this.shadowRoot.getElementById(id);button.setAttribute('aria-selected',String(name===key));button.tabIndex=name===key?0:-1;button.classList.toggle('btn-primary',name===key);button.classList.toggle('btn-secondary',name!==key);}
     };
     for(const [id,name] of [['exportTab','export'],['recordsTab','records']]) {
       const button=this.shadowRoot.getElementById(id);button.addEventListener('click',()=>switchTab(name));
@@ -3130,7 +3130,14 @@ canvas {
     this.shadowRoot.getElementById('exportDiff').addEventListener('click', () => this._export('diff'));
     this.shadowRoot.getElementById('loadLegacySnapshots').addEventListener('click', () => this._loadLegacyForComparison());
     for (const [id,index] of [['compareBefore',0],['compareAfter',1]]) this.shadowRoot.getElementById(id).addEventListener('change', e => { this._comparison[index] = e.target.value === '' ? null : Number(e.target.value); this._refreshComparisonControls(); });
+    for(const id of ['clearFilters','retryRegistryFilters','loadLegacySnapshots','exportDiff'])this.shadowRoot.getElementById(id)?.classList.add('btn','btn-secondary','btn-sm');
     this._refreshRegistryControls(); this._refreshColumnControls(); this._refreshComparisonControls(); this._refreshFeatureLabels();
+  }
+
+  _entityCount(value) {
+    const forms=this._lang==='pl'?{one:'encja',few:'encje',many:'encji',other:'encji'}:{one:'entity',other:'entities'};
+    const rule=new Intl.PluralRules(this._lang).select(value);
+    return `${(this._formatUi || createFormatUi.forHass(this._hass)).number(value)} ${forms[rule] || forms.other}`;
   }
 
   _collator() {
@@ -3166,7 +3173,7 @@ canvas {
     for(const [key,field,id,label] of [['domain','_filterDomain','domainFilter',L?'Domena':'Domain'],['search','_filterSearch','searchFilter',L?'Szukaj':'Search'],['area','_filterArea','areaFilter',L?'Obszar':'Area'],['device','_filterDevice','deviceFilter',L?'Urządzenie':'Device']]) {
       const value=this[field];if(!value||value==='all')continue;
       const control=this.shadowRoot.getElementById(id),text=control.selectedOptions?.[0]?.textContent||value;
-      const button=document.createElement('button');button.type='button';button.dataset.clearFilter=key;button.textContent=`${label}: ${text} ×`;button.setAttribute('aria-label',`${L?'Usuń filtr':'Remove filter'}: ${label}: ${text}`);
+      const button=document.createElement('button');button.type='button';button.className='btn btn-secondary btn-sm';button.dataset.clearFilter=key;button.textContent=`${label}: ${text} ×`;button.setAttribute('aria-label',`${L?'Usuń filtr':'Remove filter'}: ${label}: ${text}`);
       button.addEventListener('click',()=>{this[field]=key==='search'?'':'all';control.value=this[field];this._currentPage=0;this._updateEntities();control.focus();});host.append(button);if(key===focusedKey)button.focus({preventScroll:true});
     }
   }
@@ -3217,7 +3224,7 @@ canvas {
       check.addEventListener('change',()=>{const current=this._exportColumns ?? [...available];this._exportColumns=check.checked?[...current,key]:current.filter(k=>k!==key);this._refreshColumnControls();Array.from(container.querySelectorAll('input')).find(node => node.getAttribute('aria-label') === key)?.focus();});
       label.append(check,document.createTextNode(key));container.append(label);
       if(selected.includes(key)) for(const [offset,text] of [[-1,L?'W górę':'Move up'],[1,L?'W dół':'Move down']]) {
-        const button=document.createElement('button');button.type='button';button.textContent=text;button.dataset.columnMove=String(offset);button.dataset.columnKey=key;button.setAttribute('aria-label',`${text}: ${key}`);button.disabled=selected.indexOf(key)+offset<0||selected.indexOf(key)+offset>=selected.length;
+        const button=document.createElement('button');button.type='button';button.className='btn btn-secondary btn-sm';button.textContent=text;button.dataset.columnMove=String(offset);button.dataset.columnKey=key;button.setAttribute('aria-label',`${text}: ${key}`);button.disabled=selected.indexOf(key)+offset<0||selected.indexOf(key)+offset>=selected.length;
         button.addEventListener('click',()=>{const list=[...selected],i=list.indexOf(key);[list[i],list[i+offset]]=[list[i+offset],list[i]];this._exportColumns=list;this._refreshColumnControls();Array.from(container.querySelectorAll('button')).find(node=>node.getAttribute('aria-label')===`${text}: ${key}`)?.focus();});container.append(button);
       }
     }

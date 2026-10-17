@@ -91,3 +91,10 @@ test('numeric history timestamps remain dates after an in-place profile change',
   f.hass.locale.time_format='12';f.card.hass=f.hass;assert.match(host.textContent,/1970/);assert.match(host.textContent,/09:30:05.*am/i);assert.equal(host.textContent.includes('—'),false);assert.equal(f.reads.length,0);
  }finally{f.close();}
 });
+test('entity counts use singular English and Polish forms after filtering',()=>{
+ const f=fixture();try{
+  f.change('searchFilter','Lamp 2','input');assert.equal(f.root.querySelector('#stats').textContent,'1 entity');
+  f.hass.locale.language='pl-PL';f.card.hass=f.hass;assert.equal(f.root.querySelector('#stats').textContent,'1 encja');
+  f.change('searchFilter','','input');assert.equal(f.root.querySelector('#stats').textContent,'2 encje');assert.equal(f.reads.length,0);
+ }finally{f.close();}
+});

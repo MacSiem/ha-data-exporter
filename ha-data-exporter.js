@@ -3053,7 +3053,7 @@ canvas {
     style.textContent = `
       .card {container-type:inline-size;container-name:data-card;}
       .card [hidden] {display:none!important;}
-      .workspace-tabs {display:flex;gap:8px;margin:12px 0;} .workspace-tabs [aria-selected=true]{border-bottom:3px solid var(--primary-color,#2563eb);font-weight:600;}
+      .workspace-tabs {display:flex;gap:8px;margin:12px 0;align-items:stretch;} .workspace-tabs .btn {width:auto;flex:1;white-space:normal;} .workspace-tabs [aria-selected=true],#exportBar .btn-primary {background:#1d4ed8;color:#fff;font-weight:600;}
       #exportColumns {margin:16px 0;border:1px solid var(--divider-color,#ddd);border-radius:8px;padding:12px;} #columnSummary,.snapshot-comparison summary {min-height:44px;cursor:pointer;} #exportBar {border-top:1px solid var(--divider-color,#ddd);padding:12px 0;} #exportBar #selectionScope{flex:1 1 220px;} #exportColumns #columnControls{display:flex;flex-wrap:wrap;gap:8px;} #columnControls label{display:inline-flex;align-items:center;gap:6px;}
       .toolbar {flex-wrap:wrap;} .card button,.card select,.card input[type=text],.feature-controls label,.feature-controls summary {min-height:44px;} .card button,.intro-banner .intro-dismiss {min-width:44px;min-height:44px;} .intro-banner{padding-right:72px;} .feature-controls summary {display:flex;align-items:center;}
       .feature-controls {display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0;}

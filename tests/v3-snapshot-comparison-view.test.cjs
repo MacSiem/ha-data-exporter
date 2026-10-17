@@ -17,7 +17,7 @@ test('snapshot UI shows only changed states, both source times, zero, missing an
   const rows=Object.fromEntries([...table.querySelectorAll('tbody tr')].map(row=>[row.cells[0].textContent,[row.cells[1].textContent,row.cells[2].textContent]]));
   assert.deepEqual(rows['sensor.zero'],['0','2']);assert.deepEqual(rows['sensor.unavailable'],['unavailable','unknown']);assert.deepEqual(rows['sensor.added'],['Not present','0']);assert.deepEqual(rows['sensor.removed'],['1','Not present']);assert.equal(rows['sensor.same'],undefined);
   assert.equal(rows['sensor.html'][1],'<img src=x onerror=alert(1)>');assert.equal(table.querySelector('img'),null);
-  assert.match(table.parentElement.textContent,/2026-10-15T00:00:00.000Z/);assert.match(table.parentElement.textContent,/2026-10-15T00:00:06.000Z/);assert.match(table.parentElement.textContent,/State only/);assert.equal(f.reads(),0);
+  assert.deepEqual([...table.parentElement.querySelectorAll('time')].map(n=>n.dateTime),['2026-10-15T00:00:00.000Z','2026-10-15T00:00:06.000Z']);assert.doesNotMatch(table.parentElement.querySelector('.snapshot-times').textContent,/2026-10-15T/);assert.match(table.parentElement.textContent,/State only/);assert.equal(f.reads(),0);
   f.card.hass={...f.hass,language:'pl'};assert.ok(f.root.querySelector('table[aria-label="Zmiany stanów snapshotów"]'));assert.match(f.root.textContent,/Brak encji/);
  }finally{f.close();}
 });

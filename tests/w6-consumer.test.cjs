@@ -33,7 +33,7 @@ function fixture() {
 }
 for(const format of ['json','csv','yaml']) test(`${format}: actual button opens inertly; Save consumes the exact UTF-8 preview once`,async()=>{
  const f=fixture();try{
-  f.root.querySelector('#formatSelect').value=format;f.root.querySelector('#exportAllBtn').click();await tick();
+  f.root.querySelector('#formatSelect').value=format;f.root.querySelector('#previewMode').value='all';f.card._updateStats();f.root.querySelector('#exportBtn').click();await tick();
   assert.ok(f.dialog());assert.equal(f.anchors.length,0);assert.equal(f.node('private').checked,false);
   const bytes=f.node('preview').textContent;assert.ok(bytes.includes('0'));assert.equal(f.blobs.length,1);
   assert.equal(await f.blobs[0].text(),bytes);assert.equal(Buffer.from(await f.blobs[0].text(),'utf8').equals(Buffer.from(bytes,'utf8')),true);
@@ -95,7 +95,7 @@ test('unchanged source setter and background table render preserve open dialog a
 });
 test('Cancel/Escape restore focus; root replacement/disconnect discard and remove document traps',async()=>{
  const f=fixture();try{
-  const opener=f.root.querySelector('#exportAllBtn');opener.focus();opener.click();await tick();f.node('cancel').click();assert.equal(f.root.activeElement,opener);
+  f.root.querySelector('#previewMode').value='all';f.card._updateStats();const opener=f.root.querySelector('#exportBtn');opener.focus();opener.click();await tick();f.node('cancel').click();assert.equal(f.root.activeElement,opener);
   opener.click();await tick();f.dialog().querySelector('dialog').dispatchEvent(new f.dom.window.Event('cancel',{cancelable:true}));assert.equal(f.dialog(),undefined);assert.equal(f.root.activeElement,opener);
   await f.open();f.card._render();assert.equal(f.dialog(),undefined);const outside=f.dom.window.document.createElement('button');f.dom.window.document.body.append(outside);outside.focus();assert.equal(f.dom.window.document.activeElement,outside);
   await f.open();f.card.remove();assert.equal(f.dialog(),undefined);assert.equal(f.anchors.length,0);
@@ -165,7 +165,7 @@ test('international monetary and tariff units retain their meaning while unsafe 
 
 test('native cancel closes and restores opener; full render closes before root replacement and reopen resets consent',async()=>{
  const f=fixture();try{
-  const opener=f.root.querySelector('#exportAllBtn');opener.focus();opener.click();await tick();
+  f.root.querySelector('#previewMode').value='all';f.card._updateStats();const opener=f.root.querySelector('#exportBtn');opener.focus();opener.click();await tick();
   const native=f.dialog().querySelector('dialog');assert(native);assert(native.open);assert(native.matches(':modal'));
   native.dispatchEvent(new f.dom.window.Event('cancel',{cancelable:true}));await tick();assert.equal(native.open,false);assert.equal(f.dialog(),undefined);assert.equal(f.root.activeElement,opener);assert.equal(f.anchors.length,0);
   await f.open();const replacement=f.dialog().querySelector('dialog'),host=f.root.querySelector('[data-ha-tools-export]');f.node('private').checked=true;f.node('private').dispatchEvent(new f.dom.window.Event('change'));

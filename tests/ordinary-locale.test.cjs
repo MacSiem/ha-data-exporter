@@ -89,16 +89,16 @@ test('the populated table and export toolbar follow Polish and English without d
   search.value='sensor.qa';search.dispatchEvent(new f.dom.window.Event('input'));search.focus();
   const cb=root.querySelector('[data-entity="sensor.qa"]');cb.checked=true;cb.dispatchEvent(new f.dom.window.Event('change'));
   c.hass={...f.hass,language:'pl'};
-  assert.equal(root.querySelector('#exportAllBtn').textContent,'Eksportuj wszystko');
-  assert.equal(root.querySelector('#exportBtn').textContent,'Eksportuj wybrane (1)');
+  assert.equal(root.querySelector('#previewMode option[value=all]').textContent,'Wszystkie w filtrach');
+  assert.equal(root.querySelector('#exportBtn').textContent,'Podgląd i zapis');
   assert.equal(search.placeholder,'Szukaj encji...');
   assert.equal(root.querySelector('th[data-sort="name"]').textContent.trim(),'Nazwa');
   assert.match(root.querySelector('#domainFilter option[value="all"]').textContent,/Wszystkie domeny/);
-  assert.match(root.querySelector('#stats').textContent,/1 encji/);
+  assert.equal(root.querySelector('#stats').textContent,'1 encja');
   assert.equal(root.activeElement,search);assert.equal(search.value,'sensor.qa');
   c.hass={...f.hass,language:'en'};
-  assert.equal(root.querySelector('#exportAllBtn').textContent,'Export All');
-  assert.equal(root.querySelector('#exportBtn').textContent,'Export Selected (1)');
+  assert.equal(root.querySelector('#previewMode option[value=all]').textContent,'All within filters');
+  assert.equal(root.querySelector('#exportBtn').textContent,'Preview and save');
   assert.equal(root.querySelector('th[data-sort="name"]').textContent.trim(),'Name');
   assert.equal(root.activeElement,search);assert.equal(f.reads.length,0);
  } finally {f.dom.window.close();}

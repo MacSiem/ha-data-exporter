@@ -20,10 +20,10 @@ test('selected export spans UI filters but respects configured domains and missi
   f.card._filterSearch='no-match';f.card._filterDomain='switch';f.card._updateEntities();
   await f.card._export('selected');
   for(let i=0;i<8;i++)await Promise.resolve();let dialog=f.card.shadowRoot.querySelector('[data-ha-tools-export]').shadowRoot;assert.match(dialog.querySelector('[data-export=source-limit]').textContent,/Rows: 2/);dialog.querySelector('[data-export=cancel]').click();
-  assert.equal(f.card.shadowRoot.getElementById('exportBtn').textContent,'Export Selected (2)');
+  assert.equal(f.card.shadowRoot.getElementById('exportBtn').textContent,'Preview and save');assert.match(f.card.shadowRoot.getElementById('selectionScope').textContent,/Selected: 2/);
   await f.card._export('all');for(let i=0;i<8;i++)await Promise.resolve();dialog=f.card.shadowRoot.querySelector('[data-ha-tools-export]').shadowRoot;assert.equal(dialog.querySelector('[data-export=status]').dataset.resultState,'no_data');dialog.querySelector('[data-export=cancel]').click();
   f.card.hass={...f.card._hass,states:{'sensor.a':f.states['sensor.a']}};
-  f.card._updateStats();assert.equal(f.card.shadowRoot.getElementById('exportBtn').textContent,'Export Selected (1)');
+  f.card._updateStats();assert.equal(f.card.shadowRoot.getElementById('exportBtn').textContent,'Preview and save');assert.match(f.card.shadowRoot.getElementById('selectionScope').textContent,/Selected: 1/);
  }finally{f.dom.window.close();}
 });
 test('standalone Settings exposes translated guidance without losing export choices',()=>{

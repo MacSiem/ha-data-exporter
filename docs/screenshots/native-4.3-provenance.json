@@ -1,0 +1,17 @@
+{
+  "version": "4.3.0",
+  "capture": "Native Google Chrome / actual Home Assistant HACS candidate",
+  "source_head": "65cf7d75e93b39f465cb37c7512867fcc2df8934",
+  "js_sha256": "1ad933052c4467f6e0205229388af8562a337276191475ed3c3af62e5ebb2514",
+  "viewport_css": {
+    "width": 390,
+    "height": 1000
+  },
+  "language": "pl",
+  "theme": "dark",
+  "data": "Owned synthetic QA sensors only; no household values",
+  "interaction": "Selected alpha retained outside beta search; scope all within filters; no Save or download",
+  "image_sha256": "a86578918c36f04ed6ff3d5432c41627f4f7c5c18f9063cf9a58f75cbb40a6df",
+  "image": "docs/screenshots/export-flow-4.3-native.png",
+  "historical_screenshots": "Existing 4.2 synthetic illustrations remain explicitly labelled historical; not current native proof"
+}

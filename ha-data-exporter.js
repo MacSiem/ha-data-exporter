@@ -2648,7 +2648,7 @@ canvas {
     this._refreshActiveFilters();
     this._refreshColumnSummary();
     const note = this.shadowRoot.getElementById('selectionScope');
-    if (note) { const visible = new Set(this._getFilteredEntities().map(e => e.entity_id)); const outside = this._getSelectedEntities().filter(e => !visible.has(e.entity_id)).length; note.textContent = this._lang === 'pl' ? `Zaznaczone: ${count}; w filtrach: ${visible.size}; poza filtrami: ${outside}. Zaznaczone obejmują też encje poza filtrami.` : `Selected: ${count}; within filters: ${visible.size}; outside filters: ${outside}. Selected includes entities outside filters.`; }
+    if (note) { const visible = new Set(this._getFilteredEntities().map(e => e.entity_id)); const outside = this._getSelectedEntities().filter(e => !visible.has(e.entity_id)).length; note.textContent = this._lang === 'pl' ? `Zaznaczone: ${count}; w filtrach: ${visible.size}; poza filtrami: ${outside}.` : `Selected: ${count}; within filters: ${visible.size}; outside filters: ${outside}.`; const explanation=this._lang==='pl'?'Eksport zaznaczonych obejmuje także encje poza filtrami.':'Selected export includes entities outside filters.'; note.title=explanation; note.setAttribute('aria-label',note.textContent+' '+explanation); }
   }
 
   async _loadRegistryMetadata() {
@@ -3053,8 +3053,8 @@ canvas {
     style.textContent = `
       .card {container-type:inline-size;container-name:data-card;}
       .card [hidden] {display:none!important;}
-      .workspace-tabs {display:flex;gap:8px;margin:12px 0;align-items:stretch;} .workspace-tabs .btn {width:auto;flex:1;white-space:normal;} .workspace-tabs [aria-selected=true],#exportBar .btn-primary {background:#1d4ed8;color:#fff;font-weight:600;}
-      #exportColumns {margin:16px 0;border:1px solid var(--divider-color,#ddd);border-radius:8px;padding:12px;} #columnSummary,.snapshot-comparison summary {min-height:44px;cursor:pointer;} #exportBar {border-top:1px solid var(--divider-color,#ddd);padding:12px 0;} #exportBar #selectionScope{flex:1 1 220px;} #exportColumns #columnControls{display:flex;flex-wrap:wrap;gap:8px;} #columnControls label{display:inline-flex;align-items:center;gap:6px;}
+      .workspace-tabs {display:flex;gap:8px;margin:12px 0;align-items:stretch;} .workspace-tabs .btn {width:auto;flex:1;white-space:normal;} .workspace-tabs [aria-selected=true],#exportBar .btn-primary {background:#1d4ed8!important;color:#fff!important;font-weight:600;}
+      #chooseEntities,#columnsHeading {font-size:13px;line-height:1.5;margin:16px 0 8px;} #exportColumns {margin:0 0 12px;border:1px solid var(--divider-color,#ddd);border-radius:8px;padding:8px 10px;} #columnSummary {display:flex;align-items:center;gap:8px;font-size:12px;} #columnSummary::before {content:"▸";} #exportColumns[open]>#columnSummary::before {content:"▾";} #columnSummaryText {white-space:nowrap;} #columnSummaryChange {margin-left:auto;font-weight:600;text-decoration:underline;} #columnSummary,.snapshot-comparison summary {min-height:44px;cursor:pointer;} #exportBar {border:1px solid var(--bento-border,#ddd);border-radius:8px;background:var(--bento-bg-2,var(--bento-bg,#f8fafc));padding:12px;gap:8px;} #exportBar #selectionScope {flex:1 1 100px;font-size:12px;line-height:1.5;} #exportBar .btn-primary {width:auto;flex:0 0 auto;} #exportBar select {width:180px;max-width:100%;} #exportBar label>span {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;} #exportColumns #columnControls{display:flex;flex-wrap:wrap;gap:8px;} #columnControls label{display:inline-flex;align-items:center;gap:6px;}
       .toolbar {flex-wrap:wrap;} .card button,.card select,.card input[type=text],.feature-controls label,.feature-controls summary {min-height:44px;} .card button,.intro-banner .intro-dismiss {min-width:44px;min-height:44px;} .intro-banner{padding-right:72px;} .feature-controls summary {display:flex;align-items:center;}
       .feature-controls {display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0;}
       .feature-controls label {display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0;max-width:100%;}
@@ -3094,12 +3094,13 @@ canvas {
     const heading=document.createElement('h3');heading.id='chooseEntities';
     const add=document.createElement('button');add.type='button';add.id='addFilter';add.className='btn btn-secondary btn-sm';add.setAttribute('aria-controls','registryFilters');add.setAttribute('aria-expanded','false');toolbar.append(add);
     const chips=document.createElement('div');chips.id='activeFilters';chips.className='feature-controls';
-    const columns=document.createElement('details');columns.id='exportColumns';columns.innerHTML='<summary id="columnSummary"></summary><div id="columnControls"></div>';
+    const columnsHeading=document.createElement('h3');columnsHeading.id='columnsHeading';
+    const columns=document.createElement('details');columns.id='exportColumns';columns.innerHTML='<summary id="columnSummary"><span id="columnSummaryText"></span> <span id="columnSummaryChange"></span></summary><div id="columnControls"></div>';
     columns.append(this.shadowRoot.getElementById('formatSelect'),this.shadowRoot.getElementById('includeAttrs').parentElement);
     const bar=document.createElement('section');bar.id='exportBar';bar.className='feature-controls';
-    bar.innerHTML='<label><span data-feature-label="scope"></span><select id="previewMode"><option value="selected"></option><option value="all"></option></select></label><span id="selectionScope" role="status"></span>';
+    bar.innerHTML='<span id="selectionScope" role="status"></span><label><span data-feature-label="scope"></span><select id="previewMode"><option value="selected"></option><option value="all"></option></select></label>';
     bar.append(this.shadowRoot.getElementById('exportBtn'));
-    exportPanel.append(heading,toolbar,chips,controls,this.shadowRoot.querySelector('.table-container'),this.shadowRoot.getElementById('pagination'),columns,bar);
+    exportPanel.append(heading,toolbar,chips,controls,this.shadowRoot.querySelector('.table-container'),this.shadowRoot.getElementById('pagination'),columnsHeading,columns,bar);
     records.append(this.shadowRoot.querySelector('.snapshot-bar'));
     const switchTab = name => {
       this._workspaceTab=name;exportPanel.hidden=name!=='export';records.hidden=name!=='records';
@@ -3134,10 +3135,13 @@ canvas {
     this._refreshRegistryControls(); this._refreshColumnControls(); this._refreshComparisonControls(); this._refreshFeatureLabels();
   }
 
-  _entityCount(value) {
-    const forms=this._lang==='pl'?{one:'encja',few:'encje',many:'encji',other:'encji'}:{one:'entity',other:'entities'};
+  _countLabel(value, forms) {
     const rule=new Intl.PluralRules(this._lang).select(value);
     return `${(this._formatUi || createFormatUi.forHass(this._hass)).number(value)} ${forms[rule] || forms.other}`;
+  }
+
+  _entityCount(value) {
+    return this._countLabel(value,this._lang==='pl'?{one:'encja',few:'encje',many:'encji',other:'encji'}:{one:'entity',other:'entities'});
   }
 
   _collator() {
@@ -3161,9 +3165,11 @@ canvas {
   }
 
   _refreshColumnSummary() {
-    const summary=this.shadowRoot.getElementById('columnSummary');if(!summary)return;
+    const summary=this.shadowRoot.getElementById('columnSummaryText');if(!summary)return;
     const L=this._lang==='pl',count=(this._exportColumns??this._availableColumns()).length,format=this.shadowRoot.getElementById('formatSelect')?.value?.toUpperCase()||'CSV';
-    summary.textContent=L?`2 · Kolumny i format · ${count} kolumn · ${format} · Prywatne dane: wyłączone · Zmień`:`2 · Columns and format · ${count} columns · ${format} · Private fields: off · Change`;
+    const columns=this._countLabel(count,L?{one:'kolumna',few:'kolumny',many:'kolumn',other:'kolumn'}:{one:'column',other:'columns'});
+    summary.textContent=`${columns} · ${format} · ${L?'Prywatne: wył.':'Private fields: off'}`;
+    this.shadowRoot.getElementById('columnSummaryChange').textContent=L?'Zmień':'Change';
   }
 
   _refreshActiveFilters() {
@@ -3180,12 +3186,12 @@ canvas {
 
   _refreshFeatureLabels() {
     const L=this._lang==='pl';
-    const labels = L ? {area:'Obszar',device:'Urządzenie',columns:'Kolumny i kolejność eksportu',scope:'Zakres podglądu',comparison:'Porównanie snapshotów tylko w tej przeglądarce (wyłącznie stan)',before:'Przed',after:'Po'}
-      : {area:'Area',device:'Device',columns:'Export columns and order',scope:'Preview scope',comparison:'Snapshots in this browser only (state comparison)',before:'Before',after:'After'};
+    const labels = L ? {area:'Obszar',device:'Urządzenie',columns:'Kolumny i kolejność eksportu',scope:'Zakres eksportu',comparison:'Porównanie snapshotów tylko w tej przeglądarce (wyłącznie stan)',before:'Przed',after:'Po'}
+      : {area:'Area',device:'Device',columns:'Export columns and order',scope:'Export scope',comparison:'Snapshots in this browser only (state comparison)',before:'Before',after:'After'};
     this.shadowRoot.querySelectorAll('[data-feature-label]').forEach(node=>{node.textContent=labels[node.dataset.featureLabel];});
-    for (const [id,text] of [['retryRegistryFilters',L?'Spróbuj ponownie':'Try again'],['addFilter',L?'+ Filtr':'+ Filter'],['chooseEntities',L?'1 · Wybierz encje':'1 · Choose entities'],['exportTab',L?'Eksport':'Export'],['recordsTab',L?'Zapisy i porównanie':'Records and comparison'],['loadLegacySnapshots',L?'Otwórz wcześniejsze zapisy lokalne':'Open earlier local snapshots'],['clearFilters',L?'Wyczyść filtry':'Clear filters'],['previewExport',L?'Podgląd eksportu':'Preview export'],['exportDiff',L?'Eksport zmian stanów':'Export state changes']]) {const node=this.shadowRoot.getElementById(id);if(node)node.textContent=text;}
+    for (const [id,text] of [['retryRegistryFilters',L?'Spróbuj ponownie':'Try again'],['addFilter',L?'+ Filtr':'+ Filter'],['chooseEntities',L?'1 · Wybierz encje':'1 · Choose entities'],['columnsHeading',L?'2 · Kolumny i format':'2 · Columns and format'],['exportTab',L?'Eksport':'Export'],['recordsTab',L?'Zapisy i porównanie':'Records and comparison'],['loadLegacySnapshots',L?'Otwórz wcześniejsze zapisy lokalne':'Open earlier local snapshots'],['clearFilters',L?'Wyczyść filtry':'Clear filters'],['previewExport',L?'Podgląd eksportu':'Preview export'],['exportDiff',L?'Eksport zmian stanów':'Export state changes']]) {const node=this.shadowRoot.getElementById(id);if(node)node.textContent=text;}
     const options=this.shadowRoot.getElementById('previewMode')?.options;
-    if(options) [L?'Zaznaczone (także poza filtrami)':'Selected (including outside filters)',L?'Wszystkie w filtrach':'All within filters'].forEach((text,i)=>options[i].textContent=text);
+    if(options) [L?'Tylko zaznaczone':'Selected',L?'Wszystkie w filtrach':'All within filters'].forEach((text,i)=>options[i].textContent=text);
     this._refreshRegistryControls(); this._refreshComparisonControls();
   }
 
@@ -3243,7 +3249,7 @@ canvas {
     const button=this.shadowRoot.getElementById('exportDiff');if(button)button.disabled=!valid;
     const legacy=this.shadowRoot.getElementById('loadLegacySnapshots');if(legacy)legacy.disabled=!this._snapshotScope;
     const rows=valid?this._comparisonFrame():[];
-    const count=this.shadowRoot.getElementById('diffCount');if(count)count.textContent=valid?`${rows.length} ${L?'zmian; unavailable/unknown zachowane dosłownie, brak encji = null':'changes; unavailable/unknown are literal, absent entity = null'}`:'';
+    const count=this.shadowRoot.getElementById('diffCount');if(count)count.textContent=valid?`${this._countLabel(rows.length,L?{one:'zmiana',few:'zmiany',many:'zmian',other:'zmiany'}:{one:'change',other:'changes'})}; ${L?'unavailable/unknown zachowane dosłownie, brak encji = null':'unavailable/unknown are literal, absent entity = null'}`:'';
     this._renderSnapshotComparison(rows,valid);
   }
 

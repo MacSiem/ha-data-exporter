@@ -1523,6 +1523,7 @@ function createDashboardPlacementV53({host, getHass, getCardConfig,
       const card = host.ownerDocument.createElement(name);
       // Prevent interactions in the visual preview from invoking card actions.
       card.preview = true; card.inert = true; card.setAttribute('inert',''); card.setConfig(clone(s.card)); card.hass = getHass();
+      card.style.display='block';card.style.width=s.card.grid_options?.columns===6?'50%':'100%';
       area.append(card); s.previewReady = true;
     } catch (_) { area.replaceChildren(); s.status = 'previewerror'; }
   }
@@ -1603,6 +1604,13 @@ function createDashboardPlacementV53({host, getHass, getCardConfig,
     const q = selector => dialog.querySelector(selector);
     q('h2').textContent = text('Add to dashboard', 'Dodaj do dashboardu');
     q('[data-label-dashboard]').textContent = text('Dashboard', 'Dashboard');
+    q('[data-label-size]').textContent=text('Width in Sections','Szerokość w sekcji');
+    q('[data-size]').disabled=s.writing || running;
+    q('[data-size]').value=String(s.card.grid_options?.columns === 6 ? 6 : 12);
+    q('[data-copy-label]').textContent=text('Card configuration for a YAML dashboard (copy only)','Konfiguracja karty dla dashboardu YAML (tylko kopiowanie)');
+    q('[data-copy-area]').hidden=s.status!=='readonly';
+    q('[data-copy-config]').value=JSON.stringify(s.card,null,2);
+    q('[data-copy]').textContent=text('Copy card configuration','Kopiuj konfigurację karty');
     q('[data-label-view]').textContent = text('View', 'Widok'); q('[data-label-section]').textContent = text('Section', 'Sekcja');
     q('[data-preview-label]').textContent = text('Card preview (destination layout may resize it)', 'Podgląd karty (układ miejsca docelowego może zmienić rozmiar)');
     q('[data-limit]').textContent = (cancelledWrite ? text('A previous save was cancelled while pending and may have completed. Inspect the dashboard in HA before another Add. ', 'Poprzedni zapis anulowano w trakcie i mógł się zakończyć. Przed kolejnym Dodaj sprawdź dashboard w HA. ') : '') + text('You can undo this addition until this window closes.', 'Możesz cofnąć dodanie karty do zamknięcia tego okna.');
@@ -1633,16 +1641,29 @@ function createDashboardPlacementV53({host, getHass, getCardConfig,
     dialog.setAttribute('aria-describedby',titleId+'-limit');
     dialog.innerHTML = `<style>
 dialog[data-ha-tools-placement]{box-sizing:border-box;width:min(640px,calc(100vw - 24px));max-height:calc(100dvh - 32px);overflow:auto;padding:20px;border:1px solid var(--divider-color,#888);border-radius:var(--ha-card-border-radius,12px);background:var(--card-background-color,#fff);color:var(--primary-text-color,#202124);font:14px/1.5 var(--paper-font-body1_-_font-family,system-ui)}dialog[data-ha-tools-placement]::backdrop{background:rgba(0,0,0,.45)}dialog[data-ha-tools-placement] h2{font-size:20px;margin:0 0 16px}dialog[data-ha-tools-placement] label{display:block;margin:12px 0}dialog[data-ha-tools-placement] select,dialog[data-ha-tools-placement] button,dialog[data-ha-tools-placement] a{box-sizing:border-box;min-height:44px;font:inherit}dialog[data-ha-tools-placement] select{width:100%;padding:8px;background:var(--secondary-background-color,#eee);color:inherit;border:1px solid var(--divider-color,#888);border-radius:8px}dialog[data-ha-tools-placement] button{padding:10px 16px;background:var(--secondary-background-color,#eee);color:inherit;border:1px solid var(--divider-color,#888);border-radius:8px;cursor:pointer}dialog[data-ha-tools-placement] button:disabled{opacity:.55;cursor:default}dialog[data-ha-tools-placement] [data-add]{background:var(--primary-color,#1565c0);color:var(--text-primary-color,#fff)}dialog[data-ha-tools-placement] button:focus-visible,dialog[data-ha-tools-placement] select:focus-visible,dialog[data-ha-tools-placement] a:focus-visible{outline:3px solid var(--primary-color,#1565c0);outline-offset:2px}dialog[data-ha-tools-placement] [data-actions]{display:flex;gap:8px;flex-wrap:wrap}dialog[data-ha-tools-placement] [data-preview]{max-width:100%;overflow:hidden}dialog[data-ha-tools-placement] [data-meta]{font-size:12px;color:var(--secondary-text-color,#555)}dialog[data-ha-tools-placement] a{display:inline-flex;align-items:center;color:var(--primary-color,#1565c0)}dialog[data-ha-tools-placement] [hidden]{display:none!important}
+      dialog[data-ha-tools-placement] textarea{box-sizing:border-box;width:100%;min-height:140px;background:var(--secondary-background-color,#eee);color:inherit;font:12px/1.5 ui-monospace,monospace}dialog[data-ha-tools-placement] [data-add]{background:var(--hat-primary-fill-computed,#1565c0);color:var(--hat-on-primary-computed,#fff)}
       </style><h2 id="${titleId}"></h2>
       <label><span data-label-dashboard></span><select data-dashboard></select></label>
       <label><span data-label-view></span><select data-view></select></label>
       <label data-section-label hidden><span data-label-section></span><select data-section></select></label>
+      <label><span data-label-size></span><select data-size><option value="12">12</option><option value="6">6</option></select></label>
+      <section data-copy-area hidden><label><span data-copy-label></span><textarea readonly data-copy-config></textarea></label><button type="button" data-copy></button></section>
       <p data-preview-label></p><div data-preview></div><p role="status" aria-live="polite"></p>
       <p data-meta data-limit id="${titleId}-limit"></p><a data-native hidden></a>
       <div data-actions><button type="button" data-add></button><button type="button" data-undo></button><button type="button" data-reconcile hidden></button><button type="button" data-cancel></button></div>`;
     dialog.querySelector('[data-dashboard]').addEventListener('change', e => selectDashboard(e.target.value));
     dialog.querySelector('[data-view]').addEventListener('change', e => chooseView(e.target.value));
     dialog.querySelector('[data-section]').addEventListener('change', e => chooseSection(e.target.value));
+    dialog.querySelector('[data-size]').addEventListener('change',e=>{
+      const s=session;if(!current(s)||s.writing||running||s.tx)return;
+      s.card={...s.card,grid_options:{...s.card.grid_options,columns:e.target.value==='6'?6:12}};
+      s.intent++;preview();paint();
+    });
+    dialog.querySelector('[data-copy]').addEventListener('click',async()=>{
+      const s=session;if(!current(s))return;
+      try{await host.ownerDocument.defaultView.navigator.clipboard.writeText(JSON.stringify(s.card,null,2));}
+      catch(_){if(current(s)){const field=dialog.querySelector('[data-copy-config]');field.focus();field.select();}}
+    });
     dialog.querySelector('[data-add]').addEventListener('click', () => write(false));
     dialog.querySelector('[data-undo]').addEventListener('click', () => write(true));
     dialog.querySelector('[data-reconcile]').addEventListener('click', reconcile);
@@ -1650,6 +1671,7 @@ dialog[data-ha-tools-placement]{box-sizing:border-box;width:min(640px,calc(100vw
     dialog.addEventListener('cancel', e => {e.preventDefault(); close();});
     dialog.addEventListener('close', () => { if (dialog && !dialog.open) close(); });
     host.append(dialog);
+    createUiV3().applyTheme(host);
     if (typeof dialog.showModal === 'function') dialog.showModal(); else dialog.open = true;
   }
   function open() {
@@ -1697,7 +1719,7 @@ dialog[data-ha-tools-placement]{box-sizing:border-box;width:min(640px,calc(100vw
     paint();
   }
   function destroy() { close(); destroyed = true; }
-  return {open,close,destroy,update,acceptsOwnRemount:() => !!session?.tx && current(session)};
+  return {open,close,destroy,update,sourceDisconnected:()=>{close();return false;},acceptsOwnRemount:() => !!session?.tx && current(session)};
 }
 // END VENDORED ha-tools-dashboard-placement.js
 

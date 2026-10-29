@@ -3106,6 +3106,9 @@ canvas {
     }
     if (snapClear) {
       snapClear.addEventListener('click', () => {
+        if (!confirm(this._lang === 'pl'
+          ? 'Usunąć zapisy tej karty dla bieżącego użytkownika Home Assistant? Nie można tego cofnąć.'
+          : 'Delete this card’s saved snapshots for the current Home Assistant user? This cannot be undone.')) return;
         this._clearSnapshots();
         this._updateSnapshotStatus();
       });
@@ -3798,7 +3801,7 @@ canvas {
         #entityBody > tr:not(.attr-row) td {display:block;border:0;padding:4px;min-width:0;white-space:normal;overflow-wrap:anywhere;}
         #entityBody .checkbox-cell,#entityBody .expand-cell {width:44px;min-width:44px;padding:0;overflow:visible;}
         #entityBody .checkbox-cell {grid-column:1;grid-row:1 / 4;align-self:center;} #entityBody .expand-cell {grid-column:3;grid-row:1 / 4;align-self:center;}
-        #entityBody .entity-name {grid-column:2;grid-row:1;font-weight:600;} #entityBody .state-val {grid-column:2;grid-row:2;} #entityBody .entity-id {grid-column:2;grid-row:3;font-size:12px;}
+        #entityBody .entity-name {grid-column:2;grid-row:1;font-weight:600;} #entityBody .entity-id {grid-column:2;grid-row:2;font-size:12px;} #entityBody .state-val {grid-column:2;grid-row:3;}
         #entityBody > tr:not(.attr-row) td:nth-child(6),#entityBody > tr:not(.attr-row) td:nth-child(7) {display:none;}
         .attr-row,.attr-row td {display:block;} .pagination {flex-wrap:wrap;} .record-fields {grid-template-columns:1fr;}
       }`;
@@ -3807,7 +3810,10 @@ canvas {
       .card {font-family:var(--hat-font,var(--_hat-font));max-width:1200px;margin-inline:auto;}
       .card-header {flex-direction:row;flex-wrap:wrap;gap:8px;text-align:left;align-items:center;}
       .card-header h2 {flex:1 1 140px;min-width:0;overflow-wrap:anywhere;font-size:18px;}
-      .card input,.card select,.card button {font:inherit;font-size:14px;}
+      .card input,.card select,.card button {font:inherit;font-size:14px!important;}
+      .workspace-tabs {flex-wrap:nowrap;overflow-x:auto;} .workspace-tabs .btn {white-space:nowrap;flex:1 0 auto;}
+      #exportPreview:empty {display:none;}
+      .snapshot-comparison .entity-id {overflow-wrap:normal;word-break:normal;overflow:auto;}
       .card .btn-primary,#exportBar .btn-primary,.workspace-tabs [aria-selected=true] {background:var(--hat-primary-fill-computed)!important;color:var(--hat-on-primary-computed)!important;}
       .card button:disabled {opacity:.5;cursor:default;}
       .intro-banner,:host(.bento-dark) .intro-banner {animation:none;background:var(--hat-card,var(--_hat-card));color:var(--hat-text,var(--_hat-text));font:inherit;padding:8px 60px 8px 12px;margin:0 0 8px;}
@@ -3816,7 +3822,7 @@ canvas {
       .intro-banner .intro-steps li {font-size:14px;color:inherit;}
       .intro-banner .intro-dismiss {top:8px;right:8px;min-height:44px;min-width:44px;}
       .card label,.card summary,.card .entity-name,.card .state-val,#chooseEntities,#columnsHeading {font-size:14px;}
-      .donate-section a {font-size:12px!important;}
+      .donate-section a {font-size:14px!important;}
       .mobile-sort {display:none;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;}
       .entity-id {font-family:ui-monospace,monospace;font-size:12px;}
       @container data-card (max-width:499px) {
@@ -4030,7 +4036,11 @@ canvas {
     const table=document.createElement('table');table.setAttribute('aria-label',L?'Zmiany stanów snapshotów':'Snapshot state changes');
     const head=table.createTHead().insertRow();for(const label of [L?'Encja':'Entity',L?'Przed':'Before',L?'Po':'After']){const th=document.createElement('th');th.scope='col';th.textContent=label;head.append(th);}
     const body=table.createTBody();for(const row of rows.slice(this._comparisonPage*pageSize,(this._comparisonPage+1)*pageSize)){
-      const tr=body.insertRow();for(const value of [row.entity_id,row.before_state,row.after_state]){const td=tr.insertCell();td.textContent=value===null?(L?'Brak encji':'Not present'):String(value);}
+      const tr=body.insertRow();for(const [index,value] of [row.entity_id,row.before_state,row.after_state].entries()){
+        const td=tr.insertCell();
+        if(index===0){td.className='entity-id';td.tabIndex=0;td.title=String(value);td.innerHTML=_esc(String(value)).replace(/[._]/g,'$&<wbr>');}
+        else td.textContent=value===null?(L?'Brak encji':'Not present'):String(value);
+      }
     }
     host.append(table);
     if(pages>1){const nav=document.createElement('nav');nav.className='snapshot-pages';nav.setAttribute('aria-label',L?'Strony zmian snapshotów':'Snapshot changes pages');

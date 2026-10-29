@@ -270,6 +270,12 @@ available to that session. Dashboard writes require administrator authorization
 in Home Assistant itself. There is no per-user server policy to configure here,
 and no background export service.
 
+Dashboard visibility is not a data-access boundary: Home Assistant can still
+allow an authenticated user to read a hidden dashboard's configuration. Keep
+secrets out of card options. A browser-only setting cannot revoke data already
+delivered to that browser; access to source data must be restricted in Home
+Assistant itself.
+
 See [SECURITY.md](SECURITY.md) for safe vulnerability reporting and [NOTICE](NOTICE) for licensing notices.
 
 The entity table, filters, export toolbar, pagination, first-run guidance and optional support labels follow the Home Assistant language (Polish or English, including Polish regional locales). Ordinary language updates preserve the focused search and text selection, selected entities, format, attribute choice and dismissed guidance/support.

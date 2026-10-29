@@ -17,9 +17,9 @@
       "local_extension": "Optional pointLabel(value, precise) adds seconds for adjacent snapshots; profile and time zone policy unchanged."
     },
     "ha-tools-dashboard-placement.js": {
-      "sha256": "9eb5a0529079d9609f4595ed3d7fed0ade747e970126e0f4e60d3670a10619e7",
+      "sha256": "50f0ad962facc429d68bb5f76f80e1b7b5cbc5fc930c21a9857953736f629e83",
       "supplied_from": "ha-smart-reports/shared/ha-tools-dashboard-placement.js@ae7b379066f3d9e93f10f40fde8d1adbdc080c57",
-      "local_extension": "Data-only allowlist/native tag, Sections width preview, copy-only YAML configuration, theme primary contrast and safe standalone disconnect."
+      "local_extension": "Data-only allowlist/native tag, Sections width preview, copy-only YAML configuration, theme primary contrast and safe standalone disconnect. Readable underlined native link and text-color focus ring."
     },
     "ha-tools-tariff-guard.js": {
       "sha256": "9389dfb5b3aa6019769e29fbec30ef42750b296eb1f753b37a86c967e0d2429d",

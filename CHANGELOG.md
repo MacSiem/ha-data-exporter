@@ -1,4 +1,15 @@
-## 4.3.0 (2026-10-17)
+## 4.3.0 (2026-10-29)
+
+- Fix issue #6: unrelated Home Assistant updates no longer erase a reviewed
+  filtered export. Relevant data and access changes still require a fresh review,
+  with actionable Polish and English guidance.
+- Add initial/available tab options, collapsed user-specific help and visual
+  editor controls. Preserve unknown configuration fields and existing full cards.
+- Use mobile sorting instead of a wrapped table header, left-aligned headings,
+  readable theme colors, minimum text sizes and accessible entity identifiers.
+- Add native dashboard placement with preview, width selection, confirmed save,
+  conflict-aware Undo and copy-only configuration for YAML dashboards.
+- Avoid duplicate card-picker entries and periodic snapshots in card previews.
 
 - Separate Export and Records/comparison tabs, retaining selections, snapshots,
   timers and comparison choices when switching.

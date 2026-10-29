@@ -1,4 +1,4 @@
-/* HA Tools split — ha-data-exporter v4.3.0 (2026-10-17) — single-tool standalone repo */
+/* HA Tools split — ha-data-exporter v4.3.0 (2026-10-29) — single-tool standalone repo */
 (function() {
 'use strict';
 

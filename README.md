@@ -54,6 +54,29 @@ system/browser. Your Home Assistant profile can explicitly choose server time,
 changes remain distinguishable. Raw timestamps and export values keep their
 original representation.
 
+Updates to unrelated entities do not erase a reviewed filtered export. If the
+selected data or your Home Assistant access changes, use **Refresh preview** and
+review the current contents before saving. A saved comparison is independent of
+later live state changes; access changes still cancel its review.
+
+On narrow cards, **Sort by** replaces the table header. Help starts collapsed,
+and dismissing it is remembered for the current Home Assistant user in this
+browser. The visual editor can select the initial tab, available tabs and help.
+
+### Add to your dashboard
+
+Administrators can choose **Add to my dashboard**, an existing dashboard, view,
+section and width. Review the actual card before choosing **Add**. The window
+keeps a local copy of the original configuration and offers **Undo** until it is
+closed. Another edit prevents Undo from overwriting that newer configuration.
+Home Assistant has no atomic compare-and-save API: a concurrent edit between the
+last check and save remains a limitation. An uncertain save is checked by reading
+the result, without automatically repeating the write.
+
+YAML dashboards offer copy-only card configuration; automatic dashboards and
+unsupported layouts remain unchanged. The standard Home Assistant editor stays
+available. Card previews do not run periodic snapshots.
+
 ### What is automatic vs. manual
 
 | Automatic | Manual (optional) |
@@ -111,6 +134,10 @@ That's it — no options are required. Optional config:
 type: custom:ha-data-exporter
 title: Data Exporter
 default_format: csv        # csv | json | yaml
+default_tab: export        # export | records; must be included in tabs
+tabs: [export, records]    # at least one; controls presentation, not permissions
+show_help: true
+show_support: true         # optional link, administrators only
 domains:                    # restrict the browser to specific domains
   - sensor
   - light
@@ -134,7 +161,8 @@ panel_custom:
 After restart, **Data Exporter** appears in the HA sidebar.
 
 The visual editor supports title, domains, default format, page size, attribute
-visibility and `storage_key`. Other YAML options remain preserved. Page size must
+visibility, `storage_key`, initial/available tabs, help and support visibility.
+Other YAML options remain preserved. Page size must
 be an integer from 1 to 1000; domains are a comma-separated list in the editor.
 
 The **Settings** button opens the suite settings when embedded in HA Tools Panel.
@@ -233,6 +261,14 @@ Exports contain only reviewed fields. Names and entity/device/area identifiers
 require explicit consent for each export; credentials, users, addresses and raw
 configuration remain excluded. Review the exact file preview before saving.
 Keep exports private and use synthetic records when reporting a bug.
+
+This browser plugin has no server-side feature policy, services or entities of
+its own. It uses the current user's Home Assistant session for states, history
+and registries; it never substitutes an administrator account. Card options and
+hidden tabs are presentation settings, not access restrictions on data already
+available to that session. Dashboard writes require administrator authorization
+in Home Assistant itself. There is no per-user server policy to configure here,
+and no background export service.
 
 See [SECURITY.md](SECURITY.md) for safe vulnerability reporting and [NOTICE](NOTICE) for licensing notices.
 

@@ -15,11 +15,23 @@
       "sha256": "49e17bcc9e156199a184d0137950a6f170c470c996e443228ffa7b2d82ae2b5a",
       "supplied_from": "ha-trace-viewer/shared/ha-tools-format.js@877bb50b68097570c92d369d2ef016e5e821303c",
       "local_extension": "Optional pointLabel(value, precise) adds seconds for adjacent snapshots; profile and time zone policy unchanged."
+    },
+    "ha-tools-dashboard-placement.js": {
+      "sha256": "ba7a8fbf2d67c8dec805d18d04a77e7ae60f95b308220aad20cba5bd2d847eec",
+      "supplied_from": "ha-smart-reports/shared/ha-tools-dashboard-placement.js@ae7b379066f3d9e93f10f40fde8d1adbdc080c57",
+      "local_extension": "Data-only allowlist/native tag; guard unchanged except trailing Node export comment."
+    },
+    "ha-tools-tariff-guard.js": {
+      "sha256": "9389dfb5b3aa6019769e29fbec30ef42750b296eb1f753b37a86c967e0d2429d",
+      "supplied_from": "ha-smart-reports/shared/ha-tools-tariff-guard.js@ae7b379066f3d9e93f10f40fde8d1adbdc080c57",
+      "local_extension": "Data-only allowlist/native tag; guard unchanged except trailing Node export comment."
     }
   },
   "runtime_normalization": {
     "ha-tools-export.js": "Remove only the export keyword of createExportDialog; preserve all other factory bytes.",
     "ha-tools-ui.js": "Exact factory; omit only trailing Node test export comment/statement.",
-    "ha-tools-format.js": "Exact local factory; omit only trailing Node test export comment/statement."
+    "ha-tools-format.js": "Exact local factory; omit only trailing Node test export comment/statement.",
+    "ha-tools-dashboard-placement.js": "Exact local factory; omit only trailing Node test export comment/statement.",
+    "ha-tools-tariff-guard.js": "Exact local factory; omit only trailing Node test export comment/statement."
   }
 }

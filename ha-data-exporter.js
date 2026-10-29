@@ -3810,7 +3810,9 @@ canvas {
       .card {font-family:var(--hat-font,var(--_hat-font));max-width:1200px;margin-inline:auto;}
       .card-header {flex-direction:row;flex-wrap:wrap;gap:8px;text-align:left;align-items:center;}
       .card-header h2 {flex:1 1 140px;min-width:0;overflow-wrap:anywhere;font-size:18px;}
+      .card-header>div {margin-left:auto;}
       .card input,.card select,.card button {font:inherit;font-size:14px!important;}
+      .card input::placeholder {color:var(--bento-text-secondary,#64748b);opacity:1;}
       .workspace-tabs {flex-wrap:nowrap;overflow-x:auto;} .workspace-tabs .btn {white-space:nowrap;flex:1 0 auto;}
       #exportPreview:empty {display:none;}
       .snapshot-comparison .entity-id {overflow-wrap:normal;word-break:normal;overflow:auto;}
@@ -3819,6 +3821,8 @@ canvas {
       .intro-banner,:host(.bento-dark) .intro-banner {animation:none;background:var(--hat-card,var(--_hat-card));color:var(--hat-text,var(--_hat-text));font:inherit;padding:8px 60px 8px 12px;margin:0 0 8px;}
       .intro-banner::before {display:none;}
       .intro-banner .intro-headline,:host(.bento-dark) .intro-banner .intro-headline {display:list-item;background:none;color:inherit;font-size:14px;line-height:44px;margin:0;cursor:pointer;}
+      .intro-banner:not([open]) {padding-right:12px;}
+      .intro-banner .intro-headline {white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
       .intro-banner .intro-steps li {font-size:14px;color:inherit;}
       .intro-banner .intro-dismiss {top:8px;right:8px;min-height:44px;min-width:44px;}
       .card label,.card summary,.card .entity-name,.card .state-val,#chooseEntities,#columnsHeading {font-size:14px;}
@@ -3867,9 +3871,10 @@ canvas {
       this._workspaceTab=name;exportPanel.hidden=name!=='export';records.hidden=name!=='records';
       for(const [id,key] of [['exportTab','export'],['recordsTab','records']]) {const button=this.shadowRoot.getElementById(id);button.setAttribute('aria-selected',String(name===key));button.tabIndex=name===key?0:-1;button.classList.toggle('btn-primary',name===key);button.classList.toggle('btn-secondary',name!==key);}
     };
+    const revealTab=button=>{const strip=tabs.getBoundingClientRect(),item=button.getBoundingClientRect();if(item.left<strip.left)tabs.scrollLeft-=strip.left-item.left;else if(item.right>strip.right)tabs.scrollLeft+=item.right-strip.right;};
     for(const [id,name] of [['exportTab','export'],['recordsTab','records']]) {
-      const button=this.shadowRoot.getElementById(id);button.addEventListener('click',()=>switchTab(name));
-      button.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const next=event.key==='Home'?enabledTabs[0]:event.key==='End'?enabledTabs.at(-1):enabledTabs[(enabledTabs.indexOf(this._workspaceTab)+1)%enabledTabs.length];switchTab(next);this.shadowRoot.getElementById(next+'Tab').focus();});
+      const button=this.shadowRoot.getElementById(id);button.addEventListener('click',()=>{switchTab(name);revealTab(button);});
+      button.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const next=event.key==='Home'?enabledTabs[0]:event.key==='End'?enabledTabs.at(-1):enabledTabs[(enabledTabs.indexOf(this._workspaceTab)+1)%enabledTabs.length];switchTab(next);const selected=this.shadowRoot.getElementById(next+'Tab');selected.focus();revealTab(selected);});
     }
     switchTab(this._workspaceTab||'export');
     add.addEventListener('click',()=>{controls.hidden=!controls.hidden;add.setAttribute('aria-expanded',String(!controls.hidden));if(!controls.hidden&&this._registryStatus==='idle')this._ensureRegistryMetadata();});

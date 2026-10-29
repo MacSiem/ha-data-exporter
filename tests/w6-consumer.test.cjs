@@ -93,6 +93,26 @@ for(const mutate of ['filter','selection','columns','attrs','comparison','state'
 test('unchanged source setter and background table render preserve open dialog and bytes',async()=>{
  const f=fixture();try{await f.open();const dialog=f.dialog(),bytes=f.node('preview').textContent,revision=f.card._getExportContext().revision;f.card.hass=f.hass;f.card._updateEntities();assert.equal(f.dialog(),dialog);assert.equal(f.node('preview').textContent,bytes);assert.equal(f.card._getExportContext().revision,revision);}finally{f.close();}
 });
+
+for (const format of ['csv', 'json', 'yaml']) test(`issue 6: ${format} filtered review survives unrelated HA state updates`, async () => {
+ const f=fixture();try {
+  f.root.querySelector('#searchFilter').value='zero';
+  f.root.querySelector('#searchFilter').dispatchEvent(new f.dom.window.Event('input'));
+  f.root.querySelector('#formatSelect').value=format;
+  f.root.querySelector('#previewMode').value='all';f.card._updateStats();
+  f.root.querySelector('#exportBtn').click();await tick();
+  const reviewed=f.node('preview').textContent,blob=f.blobs.at(-1);
+  assert.ok(reviewed.length>0);assert.equal(f.node('save').disabled,false);
+  for(let i=0;i<3;i++) {
+   f.states['switch.a']={...f.states['switch.a'],state:i%2?'on':'off',last_updated:`2026-10-29T12:00:0${i}Z`};
+   f.card.hass={...f.hass,states:{...f.states}};await tick();
+   assert.equal(f.node('preview').textContent,reviewed,'unrelated entity must not erase the reviewed file');
+   assert.equal(f.node('save').disabled,false);
+  }
+  f.node('save').click();await tick();
+  assert.equal(f.anchors.length,1);assert.equal(await blob.text(),reviewed);
+ }finally{f.close();}
+});
 test('Cancel/Escape restore focus; root replacement/disconnect discard and remove document traps',async()=>{
  const f=fixture();try{
   f.root.querySelector('#previewMode').value='all';f.card._updateStats();const opener=f.root.querySelector('#exportBtn');opener.focus();opener.click();await tick();f.node('cancel').click();assert.equal(f.root.activeElement,opener);

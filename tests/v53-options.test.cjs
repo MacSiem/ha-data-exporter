@@ -89,7 +89,7 @@ test('snapshot comparison exposes the intact entity ID with separator-only wrap 
 });
 test('a card receiving HA before attachment enables dashboard placement immediately on attachment',()=>{
  const f=fixture();try{
-  const card=f.dom.window.document.createElement('ha-data-exporter');card.style.setProperty('--primary-color','#ffff00');card.setConfig({show_support:false});card.hass=f.hass;
+  const card=f.dom.window.document.createElement('ha-data-exporter');card.style.setProperty('--primary-color','#ffff00');card.setConfig({show_support:false});card.hass={...f.hass,callWS:async()=>[]};
   assert.equal(card.shadowRoot.querySelector('[data-data-dashboard-add]').disabled,true);
   f.dom.window.document.body.append(card);
   assert.equal(card.shadowRoot.querySelector('[data-data-dashboard-add]').disabled,false);

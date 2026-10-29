@@ -10,6 +10,9 @@
 - Add native dashboard placement with preview, width selection, confirmed save,
   conflict-aware Undo and copy-only configuration for YAML dashboards.
 - Avoid duplicate card-picker entries and periodic snapshots in card previews.
+- Enable dashboard placement immediately when an empty card is attached. The
+  review dialog follows HA primary colors and theme changes without discarding
+  reviewed content.
 
 - Separate Export and Records/comparison tabs, retaining selections, snapshots,
   timers and comparison choices when switching.

@@ -1,0 +1,39 @@
+{
+  "version": "4.3.0",
+  "date": "2026-10-29",
+  "capture": "Actual Home Assistant 2026.10.2, native card installed through HACS, browser viewport screenshots",
+  "data": "Owned synthetic QA sensors, no household values",
+  "language": "en",
+  "qualified_runtime": "698e2bef49e1de5a7cfa165e67bcbb91691c1f6a",
+  "runtime_sha256": "1fea3106b2f25ee92f656a0c310e59f433deb3451b6d4d341345de0d71051838",
+  "qualification": "Panel/mobile captured on937; final698 changes only the nested review dialog theme, with separate current dialog capture and native verification. Other layouts remain unchanged.",
+  "images": [
+    {
+      "image": "docs/screenshots/export-panel-4.3-native.png",
+      "sha256": "50cffee079fd8b9c139dbc1cc9f35a3d19dc465b05ca82fc8ce4feb453536b5d",
+      "source_head": "937c6ba2fabbea61bebd0d9a5117fa1a0236829e",
+      "viewport_css": {
+        "width": 1440,
+        "height": 900
+      }
+    },
+    {
+      "image": "docs/screenshots/export-mobile-4.3-native.png",
+      "sha256": "a88597df00a6300ddfd3f827871b6dccc661030edd9ddc7025d4486c4ff0c099",
+      "source_head": "937c6ba2fabbea61bebd0d9a5117fa1a0236829e",
+      "viewport_css": {
+        "width": 390,
+        "height": 900
+      }
+    },
+    {
+      "image": "docs/screenshots/export-review-4.3-native.png",
+      "sha256": "2beca882916a95844ce629105c4d0a237345869f65d662eaf5c37da633fa0f9c",
+      "source_head": "698e2bef49e1de5a7cfa165e67bcbb91691c1f6a",
+      "viewport_css": {
+        "width": 1440,
+        "height": 900
+      }
+    }
+  ]
+}

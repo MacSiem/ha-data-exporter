@@ -3,8 +3,7 @@
 ![Preview](banner.png)
 
 Browse, filter and export reviewed Home Assistant entity data to CSV / JSON /
-YAML, with optional browser-local snapshots for state comparisons. Zero configuration: add the card and it lists every entity in your
-instance.
+YAML, with optional browser-local snapshots for state comparisons. Zero configuration: add the card and it lists the entities supplied to your Home Assistant session.
 
 [![Version](https://img.shields.io/github/v/release/MacSiem/ha-data-exporter)](https://github.com/MacSiem/ha-data-exporter/releases) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -89,12 +88,29 @@ available. Card previews do not run periodic snapshots.
 
 ## Screenshots
 
-![Data Exporter 4.3 export steps and reviewed scope](docs/screenshots/export-flow-4.3-native.png)
+![Data Exporter: choose entities, columns and reviewed scope](docs/screenshots/export-panel-4.3-native.png)
 
-*Version 4.3.0 in a real Home Assistant instance, Polish dark theme at 390 px.
-Synthetic QA entities demonstrate the compact columns summary, selected/outside-filter
-counts and one bottom preview action. The Home Assistant profile controls language,
-theme and time presentation. [Capture details](docs/screenshots/native-4.3-provenance.json).*
+*Version 4.3.0 in real Home Assistant, with synthetic QA sensors. The full panel
+keeps one Preview and save action after selection and column settings.*
+
+![Data Exporter on a narrow screen](docs/screenshots/export-mobile-4.3-native.png)
+
+*At 390 px, Sort by replaces the table header and entity identifiers remain
+readable. Help starts collapsed. Language and colors follow the HA profile.*
+
+![Review the exact export before saving](docs/screenshots/export-review-4.3-native.png)
+
+*The review explains included/excluded fields and unavailable metadata. Private
+fields start off. These captures do not demonstrate a downloaded file.
+[Capture details](docs/screenshots/native-v53-provenance.json).*
+
+### Earlier 4.3 workflow reference
+
+![Earlier 4.3 export workflow](docs/screenshots/export-flow-4.3-native.png)
+
+*Earlier 4.3 candidate, Polish dark theme. It illustrates selected entities outside
+the current filter; its appearance predates the current theme and mobile updates.
+[Earlier capture details](docs/screenshots/native-4.3-provenance.json).*
 
 ### Earlier 4.2 comparison reference
 
@@ -123,6 +139,10 @@ complete comparison, including changes beyond the visible page.*
 [![Open in HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=MacSiem&repository=ha-data-exporter&category=plugin)
 
 ## Quick start
+
+Edit a dashboard, choose **Add card**, search for **Data Exporter**, and save.
+No fields are required. Use the visual editor for the title, default tab, visible
+tabs and help. YAML remains optional:
 
 ```yaml
 type: custom:ha-data-exporter

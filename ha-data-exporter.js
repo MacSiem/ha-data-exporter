@@ -2707,14 +2707,26 @@ canvas {
 
   _syncExportContext() {
     const map = value => value ? Array.from(value.entries()) : null;
+    // A live HA update is not necessarily a change to this export. Bind review
+    // to its actual ordered rows (including selected rows hidden by filters),
+    // not to every entity in the house. Keep raw membership separate from the
+    // reviewed projection so redacted IDs cannot conceal a removed/replaced row.
+    const mode = this._exportMode || 'all';
+    const hasStates = !!this._hass?.states && typeof this._hass.states === 'object';
+    const source = mode === 'diff'
+      ? this._comparison.map(index => this._snapshotChoices()[index] ?? null)
+      : hasStates ? [
+        (mode === 'selected' ? this._getSelectedEntities() : this._getFilteredEntities()).map(entity => entity.entity_id),
+        this._reviewedExportRows(mode, true)
+      ] : null;
     const signature = JSON.stringify([
       this._identityEpoch, this._exportHandle(this._hass?.connection), this._exportConnected(),
       this._hass?.user?.id ?? null, this._hass?.user?.is_admin === true, this._hass?.user?.is_owner === true,
-      this._lang, this._config, this._hass?.states ?? null,
+      this._lang, this._config, hasStates, source,
       this._registryStatus, map(this._registryMetadata?.entities), map(this._registryMetadata?.devices), map(this._registryMetadata?.areas),
       this._filterDomain, this._filterSearch, this._filterArea, this._filterDevice,
       [...this._selectedEntities].sort(), this._sortBy, this._sortAsc, this._exportColumns,
-      this._includeAttrsInExport, this._comparison, this._snapshotChoices(),
+      this._includeAttrsInExport, this._comparison,
       this.shadowRoot.getElementById('formatSelect')?.value ?? this._config.default_format,
       this._exportMode
     ]);

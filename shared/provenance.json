@@ -2,8 +2,9 @@
   "schema": 1,
   "sources": {
     "ha-tools-export.js": {
-      "sha256": "bae4197cb254a7e24affbf90f029833127c5ba09b5b96f876a6fd8112f816a3d",
-      "supplied_from": "ha-config-auditor/shared/ha-tools-export.js@5a74b10b0beafc820c21e2f28597527006c7ec70"
+      "sha256": "c4be3b044c4004f193cc26500a271a225b7500b41d10d66dc6f2d594ee69fae9",
+      "supplied_from": "ha-config-auditor/shared/ha-tools-export.js@5a74b10b0beafc820c21e2f28597527006c7ec70",
+      "local_extension": "Issue #6: actionable PL/EN context-change guidance names Home Assistant and the Refresh preview button; state machine and privacy controls unchanged."
     },
     "ha-tools-ui.js": {
       "sha256": "029c06206e55abad9aa09dfcf65bb13027ec24ce6a0bfacc45a938891b27254e",

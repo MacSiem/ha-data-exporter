@@ -1119,7 +1119,7 @@ function _refreshLocalGuidance(root, language) {
   const banner = root.querySelector('.intro-banner[data-intro="ha-data-exporter"]');
   if (banner) {
     const headline = banner.querySelector('.intro-headline');
-    if (headline) headline.textContent = pl ? 'Jak wyeksportować dane' : 'How to export data';
+    if (headline) headline.textContent = pl ? 'Jak eksportować dane encji' : 'How to export entity data';
     banner.querySelectorAll('.intro-steps li').forEach((li, index) => {
       if (intro.steps[index]) li.textContent = intro.steps[index];
     });
@@ -1149,7 +1149,7 @@ function _renderLocalIntro(language, user) {
   const steps = intro.steps.map(step => '<li>' + _esc(step) + '</li>').join('');
   return '<details class="intro-banner" data-intro="ha-data-exporter">'
     + '<button class="intro-dismiss" type="button" title="' + _esc(dismiss) + '" aria-label="' + _esc(dismiss) + '">✕</button>'
-    + '<summary class="intro-headline">' + _esc(language === 'pl' ? 'Jak wyeksportować dane' : 'How to export data') + '</summary>'
+    + '<summary class="intro-headline">' + _esc(language === 'pl' ? 'Jak eksportować dane encji' : 'How to export entity data') + '</summary>'
     + '<ol class="intro-steps">' + steps + '</ol>'
     + '</details>';
 }

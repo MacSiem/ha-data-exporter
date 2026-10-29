@@ -87,3 +87,12 @@ test('snapshot comparison exposes the intact entity ID with separator-only wrap 
   assert.equal(cell.title,id);assert.equal(cell.tabIndex,0);assert.equal(cell.querySelectorAll('wbr').length,4);
  }finally{f.close();}
 });
+test('a card receiving HA before attachment enables dashboard placement immediately on attachment',()=>{
+ const f=fixture();try{
+  const card=f.dom.window.document.createElement('ha-data-exporter');card.setConfig({show_support:false});card.hass=f.hass;
+  assert.equal(card.shadowRoot.querySelector('[data-data-dashboard-add]').disabled,true);
+  f.dom.window.document.body.append(card);
+  assert.equal(card.shadowRoot.querySelector('[data-data-dashboard-add]').disabled,false);
+  card.remove();
+ }finally{f.close();}
+});

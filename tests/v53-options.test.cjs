@@ -68,3 +68,22 @@ test('visual editor publishes supported view options without mutating its input 
   assert.deepEqual(original,{type:'custom:ha-data-exporter',custom:{keep:7},tabs:['export','records']});
  }finally{f.close();}
 });
+test('cancelled snapshot deletion preserves saved data and comparison; confirmed deletion clears it',()=>{
+ const f=fixture();try{
+  f.card._takeSnapshot();f.card._takeSnapshot();f.card._comparison=[0,1];
+  const before=JSON.stringify(f.card._snapshots);let prompts=0;
+  f.dom.window.confirm=()=>{prompts++;return false;};f.root.querySelector('#snapshotClear').click();
+  assert.equal(prompts,1);assert.equal(JSON.stringify(f.card._snapshots),before);assert.deepEqual([...f.card._comparison],[0,1]);
+  f.dom.window.confirm=()=>true;f.root.querySelector('#snapshotClear').click();
+  assert.equal(f.card._snapshots.length,0);assert.deepEqual([...f.card._comparison],[null,null]);
+ }finally{f.close();}
+});
+test('snapshot comparison exposes the intact entity ID with separator-only wrap opportunities',()=>{
+ const f=fixture();try{
+  f.card._takeSnapshot();f.card._takeSnapshot();f.card._comparison=[0,1];
+  const id='sensor.long_segment_without_spaces';
+  f.card._renderSnapshotComparison([{entity_id:id,before_state:'0',after_state:'1'}],true);
+  const cell=f.root.querySelector('#snapshotComparison tbody td');assert.equal(cell.textContent,id);
+  assert.equal(cell.title,id);assert.equal(cell.tabIndex,0);assert.equal(cell.querySelectorAll('wbr').length,4);
+ }finally{f.close();}
+});

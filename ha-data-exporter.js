@@ -3645,7 +3645,7 @@ console.info(
 class HaDataExporterEditor extends HTMLElement {
   constructor() { super(); this.attachShadow({mode:'open'}); this._config={}; this._lang='en'; }
   set hass(hass) { const lang=(hass?.language||navigator.language||'').startsWith('pl')?'pl':'en';if(lang!==this._lang){this._lang=lang;this._render();} }
-  setConfig(config) { this._config={...config};this._render(); }
+  setConfig(config) { this._config=JSON.parse(JSON.stringify(config || {}));this._render(); }
   _dispatch() { this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:JSON.parse(JSON.stringify(this._config))},bubbles:true,composed:true})); }
   _render() {
     const L=this._lang==='pl',root=this.shadowRoot;
@@ -3655,18 +3655,37 @@ class HaDataExporterEditor extends HTMLElement {
       <p>${L?'Eksportuj encje w wybranym formacie. Snapshoty pozostają w tej przeglądarce.':'Export entities in your chosen format. Snapshots stay in this browser.'}</p>
       <p class="sentence"><label>${L?'Tytuł karty':'Card title'} <input id="cf_title" type="text"></label></p>
       <p class="sentence"><label>${L?'Eksportuj domeny (oddziel przecinkami; puste = wszystkie)':'Export domains (comma separated; empty = all)'} <input id="cf_domains" type="text"></label></p>
+      <p class="sentence"><label>${L?'Początkowa zakładka':'Initial tab'} <select id="cf_default_tab"><option value="export">${L?'Eksport':'Export'}</option><option value="records">${L?'Zapisy i porównanie':'Records and comparison'}</option></select></label></p>
+      <p class="sentence"><span>${L?'Dostępne zakładki':'Available tabs'}</span> <label><input id="cf_tab_export" type="checkbox">${L?'Eksport':'Export'}</label> <label><input id="cf_tab_records" type="checkbox">${L?'Zapisy i porównanie':'Records and comparison'}</label></p>
+      <p class="sentence"><label><input id="cf_show_help" type="checkbox">${L?'Pokaż pomoc':'Show help'}</label><label><input id="cf_show_support" type="checkbox">${L?'Pokaż administratorowi link wsparcia':'Show support link to administrators'}</label></p>
       <p class="sentence"><label>${L?'Domyślny format':'Default format'} <select id="cf_default_format"><option value="csv">CSV</option><option value="json">JSON</option><option value="yaml">YAML</option></select></label><label>${L?'Encji na stronę':'Entities per page'} <input id="cf_page_size" type="number" min="1" max="1000" step="1"></label></p>
       <p class="sentence"><label><input id="cf_show_attributes" type="checkbox"> ${L?'Dołączaj atrybuty do eksportu':'Include attributes in exports'}</label></p>
       <p class="sentence"><label>${L?'Klucz lokalnych snapshotów':'Local snapshot storage key'} <input id="cf_storage_key" type="text"></label></p>
       <p id="editorError" role="alert"></p>`;
-    const values={title:this._config.title??'Data Exporter',domains:Array.isArray(this._config.domains)?this._config.domains.join(', '):'',default_format:this._config.default_format??'csv',page_size:this._config.page_size??50,storage_key:this._config.storage_key??''};
+    const values={default_tab:this._config.default_tab??this._config.tabs?.[0]??'export',title:this._config.title??'Data Exporter',domains:Array.isArray(this._config.domains)?this._config.domains.join(', '):'',default_format:this._config.default_format??'csv',page_size:this._config.page_size??50,storage_key:this._config.storage_key??''};
     for(const [key,value] of Object.entries(values))root.getElementById('cf_'+key).value=String(value);
     root.getElementById('cf_show_attributes').checked=this._config.show_attributes!==false;
-    for(const key of [...Object.keys(values),'show_attributes'])root.getElementById('cf_'+key).addEventListener(key==='show_attributes'||key==='default_format'?'change':'input',event=>{
+    const enabledTabs = this._config.tabs || ['export','records'];
+    for(const option of root.getElementById('cf_default_tab').options)option.disabled=!enabledTabs.includes(option.value);
+    for(const name of ['export','records']){
+      const control=root.getElementById('cf_tab_'+name);control.checked=enabledTabs.includes(name);
+      control.addEventListener('change',()=>{
+        const tabs=['export','records'].filter(tab=>root.getElementById('cf_tab_'+tab).checked);
+        if(!tabs.length){control.checked=true;root.getElementById('editorError').textContent=L?'Wybierz co najmniej jedną zakładkę.':'Choose at least one tab.';return;}
+        this._config={...this._config,tabs,default_tab:tabs.includes(this._config.default_tab)?this._config.default_tab:tabs[0]};
+        this._dispatch();this._render();
+      });
+    }
+    for(const key of ['show_help','show_support']){
+      const control=root.getElementById('cf_'+key);control.checked=this._config[key]!==false;
+      control.addEventListener('change',()=>{this._config={...this._config,[key]:control.checked};root.getElementById('editorError').textContent='';this._dispatch();});
+    }
+    for(const key of [...Object.keys(values),'show_attributes'])root.getElementById('cf_'+key).addEventListener(key==='show_attributes'||key==='default_format'||key==='default_tab'?'change':'input',event=>{
       let value=key==='show_attributes'?event.target.checked:event.target.value,error='';
       if(key==='page_size') {value=Number(value);if(!Number.isInteger(value)||value<1||value>1000)error=L?'Liczba encji na stronę musi być całkowita od 1 do 1000.':'Entities per page must be an integer from 1 to 1000.';}
       if(key==='domains') {value=value.split(',').map(v=>v.trim()).filter(Boolean);if(value.some(v=>! /^[a-z_][a-z0-9_]*$/.test(v)))error=L?'Domeny: użyj małych liter, cyfr i podkreślenia, oddzielonych przecinkami.':'Domains: use lowercase letters, digits and underscores separated by commas.';value=value.length?value:null;}
       if(key==='storage_key'&&value.length>128)error=L?'Klucz snapshotów może mieć maksymalnie 128 znaków.':'Snapshot storage key may have at most 128 characters.';
+      if(key==='default_tab'&&!enabledTabs.includes(value))error=L?'Wybierz dostępną zakładkę.':'Choose an available tab.';
       if(key==='default_format'&&!['csv','json','yaml'].includes(value))error=L?'Wybierz CSV, JSON lub YAML.':'Choose CSV, JSON or YAML.';
       root.getElementById('editorError').textContent=error;event.target.setAttribute('aria-invalid',String(!!error));event.target.setAttribute('aria-describedby','editorError');if(error)return;
       this._config={...this._config,[key]:value};this._dispatch();

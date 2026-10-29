@@ -53,3 +53,18 @@ test('HA dark mode and current primary color drive the active consumer',()=>{
   assert.equal(f.card.style.getPropertyValue('--hat-on-primary-computed'),'#0f172a');
  }finally{f.close();}
 });
+test('visual editor publishes supported view options without mutating its input or losing foreign options',()=>{
+ const f=fixture();try{
+  const editor=f.dom.window.document.createElement('ha-data-exporter-editor');
+  const original={type:'custom:ha-data-exporter',custom:{keep:7},tabs:['export','records']};
+  editor.setConfig(original);editor.hass=f.hass;f.dom.window.document.body.append(editor);let emitted;
+  editor.addEventListener('config-changed',event=>emitted=event.detail.config);
+  const change=(id,value)=>{const node=editor.shadowRoot.getElementById(id);assert.ok(node,id);if(node.type==='checkbox')node.checked=value;else node.value=value;node.dispatchEvent(new f.dom.window.Event('change',{bubbles:true}));};
+  change('cf_default_tab','records');assert.equal(emitted.default_tab,'records');assert.equal(emitted.custom.keep,7);
+  change('cf_tab_records',false);assert.deepEqual([...emitted.tabs],['export']);assert.equal(emitted.default_tab,'export');
+  change('cf_tab_export',false);assert.deepEqual([...emitted.tabs],['export']);assert.match(editor.shadowRoot.querySelector('#editorError').textContent,/one tab/);
+  change('cf_show_help',false);assert.equal(emitted.show_help,false);
+  change('cf_show_support',false);assert.equal(emitted.show_support,false);
+  assert.deepEqual(original,{type:'custom:ha-data-exporter',custom:{keep:7},tabs:['export','records']});
+ }finally{f.close();}
+});

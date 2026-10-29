@@ -2531,7 +2531,6 @@ canvas {
 /* ===== END BENTO LIGHT MODE ===== */
 
         :host {
-          --primary-color: var(--bento-primary);
           --bg-color: var(--bento-card);
           --text-color: var(--bento-text);
           --secondary-text: var(--bento-text-secondary);

@@ -33,3 +33,9 @@ test('non-admin has no placement and ordinary source removal cancels preview wit
  const f=await setup();try{f.hass.user.is_admin=false;f.card.hass=f.hass;assert.equal(f.card.shadowRoot.querySelector('[data-data-dashboard-add]'),null);assert.equal(f.calls.length,0);}finally{f.close();}
  const g=await setup();try{await g.open();g.card.remove();await g.flush();assert.equal(g.q('dialog'),null);assert.equal(g.saves().length,0);}finally{g.close();}
 });
+test('Sections placement previews the selected width and YAML offers copy without a save',async()=>{
+ const f=await setup();try{await f.open();const size=f.q('[data-size]');assert.ok(size);size.value='6';size.dispatchEvent(new f.w.Event('change',{bubbles:true}));
+ assert.equal(f.q('[data-preview] ha-data-exporter')._config.grid_options.columns,6);f.q('[data-add]').click();await f.flush();assert.equal(f.stored.views[0].sections[0].cards[0].grid_options.columns,6);
+ }finally{f.close();}
+ const g=await setup();try{g.hass.panels.lovelace.config.mode='yaml';await g.open();const field=g.q('[data-copy-config]');assert.ok(field);assert.equal(JSON.parse(field.value).type,'custom:ha-data-exporter');assert.equal(g.q('[data-add]').disabled,true);assert.equal(g.saves().length,0);}finally{g.close();}
+});

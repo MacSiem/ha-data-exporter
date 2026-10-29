@@ -7,8 +7,9 @@
       "local_extension": "Issue #6: actionable PL/EN context-change guidance names Home Assistant and the Refresh preview button; state machine and privacy controls unchanged."
     },
     "ha-tools-ui.js": {
-      "sha256": "029c06206e55abad9aa09dfcf65bb13027ec24ce6a0bfacc45a938891b27254e",
-      "supplied_from": "ha-config-auditor/shared/ha-tools-ui.js@4c693fa25fb5e9fb845e0a262bfa1002c950b100"
+      "sha256": "1d302b1c3fc0386daff93844c4237f114e4bb6e4c3624e19d354826368cfd659",
+      "supplied_from": "ha-entity-renamer/shared/ha-tools-ui.js@408ad31ab34d56d2201422722439b3c38f2a74ae",
+      "local_extension": "v5.3 authoritative typography correction: uppercase metadata minimum 12px."
     },
     "ha-tools-format.js": {
       "sha256": "49e17bcc9e156199a184d0137950a6f170c470c996e443228ffa7b2d82ae2b5a",

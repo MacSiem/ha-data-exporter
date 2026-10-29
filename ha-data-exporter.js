@@ -444,20 +444,126 @@ function createUiV3({ language = 'en' } = {}) {
     const result = status(value);
     return `<span class="ht-result-state ht-result-state--${result.code}" data-result-state="${result.code}"><span aria-hidden="true">${result.icon}</span> ${result.label}</span>`;
   };
+  const parseColor = value => {
+    const text = typeof value === 'string' ? value.trim() : '';
+    const hex = /^#([a-f0-9]{3}|[a-f0-9]{6})$/i.exec(text);
+    if (hex) return (hex[1].length === 3 ? [...hex[1]].map(c=>c+c).join('') : hex[1]).match(/../g).map(c=>parseInt(c,16));
+    const rgb = /^rgba?\(\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)\s*,\s*(\d+(?:\.\d+)?)(?:\s*,\s*1(?:\.0+)?)?\s*\)$/i.exec(text);
+    return rgb ? rgb.slice(1,4).map(c=>Math.min(255,Math.round(Number(c)))) : null;
+  };
+  const hexColor = rgb => '#' + rgb.map(c=>c.toString(16).padStart(2,'0')).join('');
+  const luminance = rgb => rgb.map(c=>c/255).map(c=>c <= .04045 ? c/12.92 : ((c+.055)/1.055)**2.4)
+    .reduce((sum,c,i)=>sum+c*[.2126,.7152,.0722][i],0);
+  const ratio = (a,b) => (Math.max(luminance(a),luminance(b))+.05)/(Math.min(luminance(a),luminance(b))+.05);
+  const primaryColors = (value, {dark = false} = {}) => {
+    const original = parseColor(value) || parseColor(dark ? '#818cf8' : '#2563eb');
+    const white = [255,255,255], ink = [15,23,42];
+    const foreground = ratio(original,white) >= ratio(original,ink) ? white : ink;
+    const target = foreground === white ? 0 : 255;
+    let fill = original;
+    // The nearest 5% step keeps a supplied theme color when it is readable.
+    for (let step=1; ratio(fill,foreground)<4.5 && step<=20; step++)
+      fill = original.map(c=>Math.round(c+(target-c)*step*.05));
+    return {fill:hexColor(fill),foreground:hexColor(foreground),contrast:ratio(fill,foreground)};
+  };
+  const applyTheme = host => {
+    const view = host?.ownerDocument?.defaultView;
+    if (!host?.isConnected || !view?.getComputedStyle) return null;
+    const raw = view.getComputedStyle(host).getPropertyValue('--primary-color').trim();
+    let resolved = raw;
+    // Resolve ordinary named colors through the browser without a persistent node.
+    if (raw && !parseColor(raw) && !raw.includes('var(') && raw !== 'transparent' && view.CSS?.supports?.('color',raw)) {
+      const probe = host.ownerDocument.createElement('span');
+      probe.style.display = 'none'; probe.style.color = raw;
+      host.append(probe);
+      try { resolved = view.getComputedStyle(probe).color; } finally { probe.remove(); }
+    }
+    const result = primaryColors(resolved,{dark:host.classList.contains('bento-dark') || host.classList.contains('hat-dark')});
+    for (const [key,value] of [['--hat-primary-fill-computed',result.fill],['--hat-on-primary-computed',result.foreground]])
+      if (host.style.getPropertyValue(key) !== value) host.style.setProperty(key,value);
+    return result;
+  };
+  // v5.3: public tokens stay inheritable; private defaults follow the HA dark flag.
   const css = `
-.ht-result-state { display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border:1px solid currentColor;border-radius:6px;font-size:12px;line-height:1.4;white-space:normal; }
-.ht-result-state--success { color:#237b3d;background:rgba(35,123,61,.10); }
-.ht-result-state--partial { color:#966400;background:rgba(150,100,0,.10); }
-.ht-result-state--unconfirmed { color:#ad5200;background:rgba(173,82,0,.10); }
-.ht-result-state--error { color:#c32b2b;background:rgba(195,43,43,.10); }
-.ht-result-state--not_checked,.ht-result-state--no_data { color:var(--secondary-text-color,#666);background:transparent; }
+:host, .hat {
+  color-scheme: light;
+  /* powierzchnie i tekst — z motywu HA, w nawiasie wartość domyślna */
+  --_hat-bg:       var(--primary-background-color, #f3f4f6);
+  --_hat-card:     var(--ha-card-background, var(--card-background-color, #ffffff));
+  --_hat-chip:     var(--secondary-background-color, #f3f4f6);
+  --_hat-border:   var(--ha-card-border-color, var(--divider-color, #e5e7eb));
+  --_hat-text:     var(--primary-text-color, #111827);
+  --_hat-text-2:   var(--secondary-text-color, #4b5563);
+  --_hat-text-3:   var(--hat-text-3-theme, #6b7280);   /* tylko na tle karty; ≥ 12 px */
+  --_hat-grid:     color-mix(in srgb, var(--hat-text, var(--_hat-text)) 6%, var(--hat-card, var(--_hat-card)));
+  --_hat-radius:   var(--ha-card-border-radius, 12px);
+
+  /* Computed values supplied by the host when available; literals are explicit fallback colors, not dynamic contrast. */
+  --_hat-primary:      var(--primary-color, #2563eb);
+  --_hat-primary-fill: var(--hat-primary-fill-computed, #2563eb);
+  --_hat-on-primary:   var(--hat-on-primary-computed, #ffffff);
+
+  /* stany: wypełnienie (≥ 3:1) i tekst (≥ 4,5:1) */
+  --_hat-good: #0ca30c;  --_hat-good-text: #15803d;
+  --_hat-warn: #fab219;  --_hat-warn-text: #a16207;  --_hat-warn-readout: #9a5b05;
+  --_hat-crit: #d03b3b;  --_hat-crit-text: #b91c1c;
+
+  /* serie (W23) */
+  --_hat-s1: #2a78d6; --_hat-s2: #eb6834; --_hat-s3: #1baf7a; --_hat-s4: #eda100; --_hat-s5: #e87ba4;
+  --_hat-zone-cheap: #1baf7a; --_hat-zone-exp: #2a78d6;
+  --_hat-d1: #eb6834; --_hat-d2: #6250d6; --_hat-d3: #e87ba4; --_hat-d4: #eda100;
+  --_hat-unmeasured: #9ca3af;
+
+  /* typografia (W16: treść ≥ 14, metadane ≥ 12, wersaliki ≥ 12) */
+  --_hat-font: var(--ha-font-family-body, Roboto, Inter, system-ui, sans-serif);
+  --_hat-fs-display: 28px;  --_hat-fs-number2: 20px;  --_hat-fs-title: 16px;
+  --_hat-fs-body: 14px;     --_hat-fs-meta: 12px;     --_hat-fs-caps: 12px;
+  --_hat-fw-regular: 400;   --_hat-fw-medium: 500;    --_hat-fw-bold: 600;
+
+  /* odstępy (siatka 4 px) i rozmiary */
+  --_hat-space-1: 4px; --_hat-space-2: 8px; --_hat-space-3: 12px; --_hat-space-4: 16px; --_hat-space-5: 24px;
+  --_hat-icon-lg: 36px; --_hat-icon-lg-glyph: 20px;   /* nagłówek, kafelek */
+  --_hat-icon-md: 28px; --_hat-icon-md-glyph: 16px;   /* wiersz, launcher */
+  --_hat-icon-sm: 24px; --_hat-icon-sm-glyph: 14px;   /* odznaka */
+  --_hat-tint: 18%;                                   /* tło ikony = akcent 18 % */
+  --_hat-pill-h: 32px;  --_hat-pill-h-mini: 28px;  --_hat-target: 44px;
+  --_hat-row-h: 56px;   --_hat-gap: 8px;           /* siatka Sections HA */
+  --_hat-motion: 150ms ease;
+  font-family: var(--hat-font, var(--_hat-font));
+  color: var(--hat-text, var(--_hat-text));
+}
+
+/* ---------- 2. Tokeny: ciemny (hass.themes.darkMode → klasa .hat-dark) ---------- */
+:host(.hat-dark), :host(.bento-dark), .hat.hat-dark {
+  --_hat-bg:     var(--primary-background-color, #111214);
+  --_hat-card:   var(--ha-card-background, var(--card-background-color, #1c1c1e));
+  --_hat-chip:   var(--secondary-background-color, #26272b);
+  --_hat-border: var(--ha-card-border-color, var(--divider-color, #2e2f33));
+  --_hat-text:   var(--primary-text-color, #e5e7eb);
+  --_hat-text-2: var(--secondary-text-color, #a1a1aa);
+  --_hat-text-3: var(--hat-text-3-theme, #8b8b93);
+  --_hat-primary-fill: var(--hat-primary-fill-computed, #818cf8);
+  --_hat-on-primary:   var(--hat-on-primary-computed, #0f172a);
+  --_hat-good: #22c55e;  --_hat-good-text: #22c55e;
+  --_hat-warn: #fab219;  --_hat-warn-text: #fab219;  --_hat-warn-readout: #fab219;
+  --_hat-crit: #e05252;  --_hat-crit-text: #f87171;
+  --_hat-s1: #3987e5; --_hat-s2: #d95926; --_hat-s3: #199e70; --_hat-s4: #c98500; --_hat-s5: #d55181;
+  --_hat-zone-cheap: #199e70; --_hat-zone-exp: #3987e5;
+  --_hat-d1: #d95926; --_hat-d2: #9085e9; --_hat-d3: #d55181; --_hat-d4: #c98500;
+  --_hat-unmeasured: #6b7280;
+  color-scheme: dark;
+}
+
+
+
+.ht-result-state { display:inline-flex;align-items:center;gap:var(--hat-space-1,4px);min-height:24px;padding:0 10px;border:1px solid currentColor;border-radius:999px;font-size:var(--hat-fs-meta,12px);font-weight:600;line-height:16px;white-space:normal;background:transparent; }
+.ht-result-state--success { color:var(--hat-good-text, var(--_hat-good-text)); }
+.ht-result-state--partial,.ht-result-state--unconfirmed { color:var(--hat-warn-text, var(--_hat-warn-text)); }
+.ht-result-state--error { color:var(--hat-crit-text, var(--_hat-crit-text)); }
+.ht-result-state--not_checked,.ht-result-state--no_data { color:var(--hat-text-2, var(--_hat-text-2)); }
 .ht-result-state--no_data { border-style:dashed; }
-:host(.bento-dark) .ht-result-state--success { color:#81cf99; }
-:host(.bento-dark) .ht-result-state--partial { color:#efd080; }
-:host(.bento-dark) .ht-result-state--unconfirmed { color:#ffb97b; }
-:host(.bento-dark) .ht-result-state--error { color:#ff9999; }
 `;
-  return { status, statusHtml, css };
+  return { status, statusHtml, css, primaryColors, applyTheme };
 }
 // END VENDORED ha-tools-ui.js
 
@@ -1013,7 +1119,7 @@ function _refreshLocalGuidance(root, language) {
   const banner = root.querySelector('.intro-banner[data-intro="ha-data-exporter"]');
   if (banner) {
     const headline = banner.querySelector('.intro-headline');
-    if (headline) headline.textContent = '💡 ' + intro.headline;
+    if (headline) headline.textContent = pl ? 'Jak wyeksportować dane' : 'How to export data';
     banner.querySelectorAll('.intro-steps li').forEach((li, index) => {
       if (intro.steps[index]) li.textContent = intro.steps[index];
     });
@@ -1032,26 +1138,27 @@ function _refreshLocalGuidance(root, language) {
 }
 function _localSupportDismissed() { try { return localStorage.getItem(_LOCAL_SUPPORT_KEY) === '1'; } catch (_) { return false; } }
 function _bindLocalSupportDismiss(root) { root.querySelector('.support-dismiss')?.addEventListener('click', () => { try { localStorage.setItem(_LOCAL_SUPPORT_KEY, '1'); } catch (_) {} root.querySelector('.donate-section[data-source="own-card"]')?.remove(); }); }
-function _localIntroDismissed() {
-  try { return localStorage.getItem(_LOCAL_INTRO_KEY) === '1'; } catch(e) { return false; }
+function _localIntroKey(user) { return _LOCAL_INTRO_KEY + ":" + encodeURIComponent(user || "unknown"); }
+function _localIntroDismissed(user) {
+  try { return localStorage.getItem(_localIntroKey(user)) === '1'; } catch(e) { return false; }
 }
-function _renderLocalIntro(language) {
-  if (_localIntroDismissed()) return '';
+function _renderLocalIntro(language, user) {
+  if (_localIntroDismissed(user)) return '';
   const intro = language === 'pl' ? _LOCAL_INTRO_PL : _LOCAL_INTRO;
   const dismiss = language === 'pl' ? 'Ukryj instrukcję' : 'Dismiss';
   const steps = intro.steps.map(step => '<li>' + _esc(step) + '</li>').join('');
-  return '<div class="intro-banner" data-intro="ha-data-exporter">'
+  return '<details class="intro-banner" data-intro="ha-data-exporter">'
     + '<button class="intro-dismiss" type="button" title="' + _esc(dismiss) + '" aria-label="' + _esc(dismiss) + '">✕</button>'
-    + '<div class="intro-headline">💡 ' + _esc(intro.headline) + '</div>'
+    + '<summary class="intro-headline">' + _esc(language === 'pl' ? 'Jak wyeksportować dane' : 'How to export data') + '</summary>'
     + '<ol class="intro-steps">' + steps + '</ol>'
-    + '</div>';
+    + '</details>';
 }
-function _bindLocalIntroDismiss(root) {
+function _bindLocalIntroDismiss(root, user) {
   const button = root && root.querySelector('.intro-banner[data-intro="ha-data-exporter"] .intro-dismiss');
   if (!button) return;
   button.addEventListener('click', event => {
     event.stopPropagation();
-    try { localStorage.setItem(_LOCAL_INTRO_KEY, '1'); } catch(e) {}
+    try { localStorage.setItem(_localIntroKey(user), '1'); } catch(e) {}
     button.closest('.intro-banner')?.remove();
   });
 }
@@ -1238,7 +1345,8 @@ class HADataExporter extends HTMLElement {
         else { _m = _bg.match(/[\d.]+/g); if (_m) { _r = +_m[0]; _g = +_m[1]; _b = +_m[2]; } }
         if (_r != null) _d = (0.2126*_r + 0.7152*_g + 0.0722*_b) / 255 < 0.5;
       } else if (hass && hass.themes) { _d = !!hass.themes.darkMode; }
-      this.classList.toggle('bento-dark', _d);
+      this.classList.toggle('bento-dark', typeof hass?.themes?.darkMode === 'boolean' ? hass.themes.darkMode : _d);
+      createUiV3().applyTheme(this);
     } catch (e) {}
 
     const previousLanguage = this._lang;
@@ -1297,6 +1405,11 @@ class HADataExporter extends HTMLElement {
       _bindLocalSupportDismiss(this.shadowRoot);
     }
     if (identityChanged) {
+      this.shadowRoot.querySelector('.intro-banner')?.remove();
+      if (this._config.show_help !== false) {
+        this.shadowRoot.querySelector('.card')?.insertAdjacentHTML('beforebegin', _renderLocalIntro(this._lang, hass.user?.id));
+        _bindLocalIntroDismiss(this.shadowRoot, hass.user?.id);
+      }
       // Settings belong to the newly loaded namespace; update existing controls
       // without replacing the card or waiting for another hass setter.
       const enabled = this.shadowRoot.getElementById('snapshotEnabled');
@@ -1449,6 +1562,13 @@ class HADataExporter extends HTMLElement {
   }
 
   setConfig(config) {
+    config = JSON.parse(JSON.stringify(config || {}));
+    const tabs = config.tabs ?? ['export','records'];
+    if (!Array.isArray(tabs) || !tabs.length || tabs.some(tab => !['export','records'].includes(tab)) || new Set(tabs).size !== tabs.length)
+      throw new Error('tabs must contain export and/or records once');
+    if (config.default_tab !== undefined && !tabs.includes(config.default_tab))
+      throw new Error('default_tab must name an enabled tab');
+    this._workspaceTab = config.default_tab ?? tabs[0];
     const previousSnapshotKey = this._snapshotKey();
     this._config = {
       title: config.title || 'Data Exporter',
@@ -2266,7 +2386,7 @@ canvas {
         }
 
 </style>
-        ${_renderLocalIntro(this._lang)}
+        ${this._config.show_help === false ? '' : _renderLocalIntro(this._lang, this._hass?.user?.id)}
         <div class="card">
           <div class="card-header">
             <h2>${_esc(this._config.title || 'Data Exporter')}</h2>
@@ -2333,7 +2453,7 @@ canvas {
         ${this._hass?.user?.is_admin && this._config?.show_support !== false && !_localSupportDismissed() ? _renderLocalSupport(this._lang) : ''}
     `
     this._installDataFeatures();
-    _bindLocalIntroDismiss(this.shadowRoot);
+    _bindLocalIntroDismiss(this.shadowRoot, this._hass?.user?.id);
     _bindLocalSupportDismiss(this.shadowRoot);
     this._attachEvents();
   }
@@ -2483,6 +2603,14 @@ canvas {
       domainFilter.appendChild(opt);
     });
 
+    const mobileSort=this.shadowRoot.getElementById('mobileSort');
+    if(mobileSort){
+      const label=this.shadowRoot.getElementById('mobileSortLabel');label.textContent=this._lang==='pl'?'Sortuj:':'Sort by:';
+      const labels={entity_id:this._t.entityId,name:this._t.name,state:this._t.state,domain:this._t.domain};
+      const options=Object.entries(labels).flatMap(([key,name])=>['asc','desc'].map(direction=>`<option value="${key}:${direction}">${_esc(name)} ${direction==='asc'?'▲':'▼'}</option>`)).join('');
+      if(mobileSort.innerHTML!==options)mobileSort.innerHTML=options;
+      mobileSort.value=this._sortBy+':'+(this._sortAsc?'asc':'desc');
+    }
     // Update sort arrows
     this.shadowRoot.querySelectorAll('th[data-sort]').forEach(th => {
       const arrow = th.querySelector('.sort-arrow');
@@ -2515,7 +2643,7 @@ canvas {
         tr.innerHTML = `
           <td class="checkbox-cell"><label class="touch-checkbox"><input type="checkbox" data-entity="${_esc(ent.entity_id)}" aria-label="${_esc(this._t.selectEntity + ' ' + ent.entity_id + ' (' + ent.name + ')')}" ${checked} /></label></td>
           <td class="expand-cell"><button class="expand-btn" data-expand="${_esc(ent.entity_id)}" title="${this._t.showAttributes}" aria-label="${this._t.showAttributes}" aria-expanded="${this._expandedEntities.has(ent.entity_id)}" aria-controls="${_esc('details-' + ent.entity_id)}">▶</button></td>
-          <td class="entity-id" title="${_esc(ent.entity_id)}">${_esc(ent.entity_id)}</td>
+          <td class="entity-id" tabindex="0" title="${_esc(ent.entity_id)}">${_esc(ent.entity_id).replace(/[._]/g, '$&<wbr>')}</td>
           <td class="entity-name" title="${_esc(ent.name)}">${_esc(ent.name)}</td>
           <td class="state-val" title="${_esc(ent.state)}">${_esc(ent.state)}</td>
           <td>${_esc(ent.domain)}</td>
@@ -3090,7 +3218,35 @@ canvas {
         #entityBody > tr:not(.attr-row) td:nth-child(6),#entityBody > tr:not(.attr-row) td:nth-child(7) {display:none;}
         .attr-row,.attr-row td {display:block;} .pagination {flex-wrap:wrap;} .record-fields {grid-template-columns:1fr;}
       }`;
+    style.textContent += createUiV3().css + `
+      :host {--bento-text:var(--hat-text,var(--_hat-text));--bento-text-secondary:var(--hat-text-2,var(--_hat-text-2));font-size:14px;}
+      .card {font-family:var(--hat-font,var(--_hat-font));max-width:1200px;margin-inline:auto;}
+      .card-header {flex-direction:row;flex-wrap:wrap;gap:8px;text-align:left;align-items:center;}
+      .card-header h2 {flex:1 1 140px;min-width:0;overflow-wrap:anywhere;font-size:18px;}
+      .card input,.card select,.card button {font:inherit;font-size:14px;}
+      .card .btn-primary,#exportBar .btn-primary,.workspace-tabs [aria-selected=true] {background:var(--hat-primary-fill-computed)!important;color:var(--hat-on-primary-computed)!important;}
+      .card button:disabled {opacity:.5;cursor:default;}
+      .intro-banner,:host(.bento-dark) .intro-banner {animation:none;background:var(--hat-card,var(--_hat-card));color:var(--hat-text,var(--_hat-text));font:inherit;padding:8px 60px 8px 12px;margin:0 0 8px;}
+      .intro-banner::before {display:none;}
+      .intro-banner .intro-headline,:host(.bento-dark) .intro-banner .intro-headline {display:list-item;background:none;color:inherit;font-size:14px;line-height:44px;margin:0;cursor:pointer;}
+      .intro-banner .intro-steps li {font-size:14px;color:inherit;}
+      .intro-banner .intro-dismiss {top:8px;right:8px;min-height:44px;min-width:44px;}
+      .card label,.card summary,.card .entity-name,.card .state-val,#chooseEntities,#columnsHeading {font-size:14px;}
+      .donate-section a {font-size:12px!important;}
+      .mobile-sort {display:none;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;}
+      .entity-id {font-family:ui-monospace,monospace;font-size:12px;}
+      @container data-card (max-width:499px) {
+        .mobile-sort {display:flex;} .entity-table thead {display:none;}
+        #entityBody .entity-id {overflow-wrap:normal;word-break:normal;overflow:auto;max-width:100%;}
+        .workspace-tabs .btn {font-size:14px;padding:8px;}
+      }
+    `;
     this.shadowRoot.append(style);
+    createUiV3().applyTheme(this);
+    const mobileSort = document.createElement('label');mobileSort.className='mobile-sort';
+    mobileSort.innerHTML='<span id="mobileSortLabel"></span><select id="mobileSort"></select>';
+    this.shadowRoot.querySelector('.table-container').before(mobileSort);
+    mobileSort.querySelector('select').addEventListener('change',event=>{const [field,direction]=event.target.value.split(':');this._sortBy=field;this._sortAsc=direction==='asc';this._currentPage=0;this._updateEntities();});
     const controls = document.createElement('section');
     controls.className = 'feature-controls';
     controls.id = 'registryFilters';
@@ -3112,15 +3268,18 @@ canvas {
     const bar=document.createElement('section');bar.id='exportBar';bar.className='feature-controls';
     bar.innerHTML='<span id="selectionScope" role="status"></span><label><span data-feature-label="scope"></span><select id="previewMode"><option value="selected"></option><option value="all"></option></select></label>';
     bar.append(this.shadowRoot.getElementById('exportBtn'));
-    exportPanel.append(heading,toolbar,chips,controls,this.shadowRoot.querySelector('.table-container'),this.shadowRoot.getElementById('pagination'),columnsHeading,columns,bar);
+    exportPanel.append(heading,toolbar,chips,controls,mobileSort,this.shadowRoot.querySelector('.table-container'),this.shadowRoot.getElementById('pagination'),columnsHeading,columns,bar);
     records.append(this.shadowRoot.querySelector('.snapshot-bar'));
+    const enabledTabs = this._config.tabs || ['export','records'];
+    for (const name of ['export','records']) this.shadowRoot.getElementById(name+'Tab').hidden = !enabledTabs.includes(name);
     const switchTab = name => {
+      if (!enabledTabs.includes(name)) name = enabledTabs[0];
       this._workspaceTab=name;exportPanel.hidden=name!=='export';records.hidden=name!=='records';
       for(const [id,key] of [['exportTab','export'],['recordsTab','records']]) {const button=this.shadowRoot.getElementById(id);button.setAttribute('aria-selected',String(name===key));button.tabIndex=name===key?0:-1;button.classList.toggle('btn-primary',name===key);button.classList.toggle('btn-secondary',name!==key);}
     };
     for(const [id,name] of [['exportTab','export'],['recordsTab','records']]) {
       const button=this.shadowRoot.getElementById(id);button.addEventListener('click',()=>switchTab(name));
-      button.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const next=event.key==='Home'?'export':event.key==='End'?'records':this._workspaceTab==='export'?'records':'export';switchTab(next);this.shadowRoot.getElementById(next+'Tab').focus();});
+      button.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const next=event.key==='Home'?enabledTabs[0]:event.key==='End'?enabledTabs.at(-1):enabledTabs[(enabledTabs.indexOf(this._workspaceTab)+1)%enabledTabs.length];switchTab(next);this.shadowRoot.getElementById(next+'Tab').focus();});
     }
     switchTab(this._workspaceTab||'export');
     add.addEventListener('click',()=>{controls.hidden=!controls.hidden;add.setAttribute('aria-expanded',String(!controls.hidden));if(!controls.hidden&&this._registryStatus==='idle')this._ensureRegistryMetadata();});
@@ -3521,7 +3680,7 @@ if (!customElements.get('ha-data-exporter-editor')) { customElements.define('ha-
 })();
 
 window.customCards = window.customCards || [];
-window.customCards.push({
+if (!window.customCards.some(card => card.type === 'ha-data-exporter')) window.customCards.push({
   type: 'ha-data-exporter',
   name: 'Data Exporter',
   description: 'Export HA entities, states, and attributes to CSV/JSON/YAML',

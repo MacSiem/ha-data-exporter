@@ -113,6 +113,50 @@ for (const format of ['csv', 'json', 'yaml']) test(`issue 6: ${format} filtered 
   assert.equal(f.anchors.length,1);assert.equal(await blob.text(),reviewed);
  }finally{f.close();}
 });
+
+test('selected export keeps hidden selections protected and refreshes changed reviewed values',async()=>{
+ const f=fixture();try{
+  f.card._selectedEntities=new Set(['sensor.zero','switch.a']);f.card._filterSearch='zero';f.card._updateEntities();
+  await f.open('selected');const bytes=f.node('preview').textContent;
+  f.states['sensor.text'].state='other';f.card.hass={...f.hass};await tick();
+  assert.equal(f.node('preview').textContent,bytes);
+  f.states['switch.a'].state='off';f.card.hass={...f.hass};await tick();
+  assert.equal(f.node('preview').textContent,'');assert.equal(f.node('save').disabled,true);
+  f.node('refresh').click();await tick();assert.match(f.node('preview').textContent,/off/);assert.equal(f.node('save').disabled,false);
+  delete f.states['switch.a'];f.card.hass={...f.hass};await tick();
+  assert.equal(f.node('preview').textContent,'');assert.equal(f.anchors.length,0);
+ }finally{f.close();}
+});
+
+test('filtered export invalidates when another entity enters the filter',async()=>{
+ const f=fixture();try{
+  f.card._filterSearch='zero';f.card._updateEntities();await f.open();
+  f.states['switch.a'].attributes.friendly_name='zero switch';f.card.hass={...f.hass};await tick();
+  assert.equal(f.node('preview').textContent,'');assert.equal(f.node('save').disabled,true);
+  f.node('refresh').click();await tick();assert.match(f.node('source-limit').textContent,/Rows: 2/);
+ }finally{f.close();}
+});
+
+test('recorded comparison review is independent of live updates but still fenced by access',async()=>{
+ const f=fixture();try{
+  f.root.querySelector('#snapshotNow').click();f.states['sensor.zero'].state='2';f.card.hass={...f.hass};
+  f.root.querySelector('#snapshotNow').click();f.card._comparison=[0,1];await f.open('diff');
+  const bytes=f.node('preview').textContent;assert.ok(bytes.length);
+  f.states['sensor.zero'].state='3';f.card.hass={...f.hass};await tick();
+  assert.equal(f.node('preview').textContent,bytes);assert.equal(f.node('save').disabled,false);
+  f.card.hass={...f.hass,user:{id:'other',is_admin:false}};await tick();
+  assert.equal(f.node('preview').textContent,'');assert.equal(f.node('save').disabled,true);assert.equal(f.anchors.length,0);
+ }finally{f.close();}
+});
+
+for(const language of ['en','pl']) test(`changed export explains the HA data and refresh action in ${language}`,async()=>{
+ const f=fixture();try{
+  f.card.hass={...f.hass,language};await f.open();
+  f.states['sensor.zero'].state='2';f.card.hass={...f.hass,language};await tick();
+  assert.match(f.node('message').textContent,/Home Assistant/);
+  assert.ok(f.node('message').textContent.includes(f.node('refresh').textContent));
+ }finally{f.close();}
+});
 test('Cancel/Escape restore focus; root replacement/disconnect discard and remove document traps',async()=>{
  const f=fixture();try{
   f.root.querySelector('#previewMode').value='all';f.card._updateStats();const opener=f.root.querySelector('#exportBtn');opener.focus();opener.click();await tick();f.node('cancel').click();assert.equal(f.root.activeElement,opener);

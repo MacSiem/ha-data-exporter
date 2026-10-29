@@ -176,7 +176,8 @@ const delay = (ms) => new Promise(r => setTimeout(r, ms));
         if (!intro || !dismiss) problem = 'local first-run intro/dismiss missing';
         else {
           dismiss.click(); await delay(20);
-          if (window.localStorage.getItem('ha-intro-dismissed-' + t.tag) !== '1') problem = 'intro dismissal was not persisted';
+          const introKey = 'ha-intro-dismissed-' + t.tag + ':' + encodeURIComponent(mockHass().user.id);
+          if (window.localStorage.getItem(introKey) !== '1') problem = 'user-specific intro dismissal was not persisted';
           else if (el.shadowRoot.querySelector('.intro-banner[data-intro="' + t.tag + '"]')) problem = 'dismissed intro remained visible';
           else {
             const second = window.document.createElement(t.tag);

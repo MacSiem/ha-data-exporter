@@ -86,7 +86,7 @@ export function createExportDialog(options) {
 [data-ha-tools-export] [data-export-scope=included] li::before { content:'✓';flex:none; }
 [data-ha-tools-export] [data-export-scope=excluded] li::before { content:'×';flex:none; }
 [data-ha-tools-export] button { padding:8px 12px;white-space:normal;overflow-wrap:anywhere;cursor:pointer;border:1px solid transparent;border-radius:8px;color:var(--ht-export-accent,#0369a1);background:transparent; }
-[data-ha-tools-export] [data-export=save] { color:var(--ht-export-save-text,#fff);background:var(--ht-export-accent,#0369a1); }
+[data-ha-tools-export] [data-export=save] { color:var(--hat-on-primary-computed,var(--ht-export-save-text,#fff));background:var(--hat-primary-fill-computed,var(--ht-export-accent,#0369a1)); }
 [data-ha-tools-export] :focus-visible { outline:3px solid var(--ht-export-accent,#0369a1);outline-offset:2px; }
 [data-ha-tools-export] button:disabled { cursor:default;opacity:.6; }
 [data-ha-tools-export] .ht-export-actions { display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;flex:none;padding:12px 24px;border-top:1px solid var(--divider-color,#e2e8f0);background:var(--card-background-color,#fff); }
@@ -324,6 +324,9 @@ export function createExportDialog(options) {
       status('unconfirmed', 'saving');
     } else { status('not_checked', 'changed'); void refresh(); }
   }
+  function updateTheme() {
+    if (container) container.classList.toggle('bento-dark', !!root.host?.classList.contains('bento-dark'));
+  }
   function destroy() { cancel(); destroyed = true; }
-  return Object.freeze({ open, cancel, contextChanged, destroy });
+  return Object.freeze({ open, cancel, contextChanged, updateTheme, destroy });
 }

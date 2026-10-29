@@ -280,3 +280,15 @@ test('legacy snapshot export omits unclassified numeric states without rewriting
   assert.equal(f.dom.window.localStorage.getItem(key),original);
  }finally{f.close();}
 });
+
+test('changing the HA theme updates an open review without rebuilding bytes or consent',async()=>{
+ const f=fixture();try{
+  await f.open();const bytes=f.node('preview').textContent,blobs=f.blobs.length,revision=f.card._getExportContext().revision;
+  for(const darkMode of [true,false]){
+   f.card.hass={...f.hass,themes:{darkMode}};
+   assert.equal(f.dialog().host.classList.contains('bento-dark'),darkMode);
+   assert.equal(f.node('preview').textContent,bytes);assert.equal(f.blobs.length,blobs);
+   assert.equal(f.card._getExportContext().revision,revision);assert.equal(f.node('private').checked,false);
+  }
+ }finally{f.close();}
+});

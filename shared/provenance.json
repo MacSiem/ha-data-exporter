@@ -2,9 +2,9 @@
   "schema": 1,
   "sources": {
     "ha-tools-export.js": {
-      "sha256": "c4be3b044c4004f193cc26500a271a225b7500b41d10d66dc6f2d594ee69fae9",
+      "sha256": "065895a4718a0112341e03ccc05ffa65dc250efbb8044cee79ca0a4305104d03",
       "supplied_from": "ha-config-auditor/shared/ha-tools-export.js@5a74b10b0beafc820c21e2f28597527006c7ec70",
-      "local_extension": "Issue #6: actionable PL/EN context-change guidance names Home Assistant and the Refresh preview button; state machine and privacy controls unchanged."
+      "local_extension": "Issue #6: actionable PL/EN context-change guidance names Home Assistant and the Refresh preview button; state machine and privacy controls unchanged. Native dialog shadow-root Save uses inherited computed HA primary colors; theme refresh preserves reviewed bytes and consent."
     },
     "ha-tools-ui.js": {
       "sha256": "1d302b1c3fc0386daff93844c4237f114e4bb6e4c3624e19d354826368cfd659",

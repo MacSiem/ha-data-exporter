@@ -58,6 +58,11 @@ selected data or your Home Assistant access changes, use **Refresh preview** and
 review the current contents before saving. A saved comparison is independent of
 later live state changes; access changes still cancel its review.
 
+**Select all within filters (N)** selects every entity matching the current
+filters, on every page; **Clear selection (N)** also clears entities hidden by
+filters. Both buttons sit above the table in every layout. `show_select_all:
+false` hides the select-all button and the header checkbox.
+
 On narrow cards, **Sort by** replaces the table header. Help starts collapsed,
 and dismissing it is remembered for the current Home Assistant user in this
 browser. The visual editor can select the initial tab, available tabs and help.
@@ -206,7 +211,9 @@ in the dashboard, while other users can change the export and snapshot controls.
   stay numeric.
 - Native review dialog before every export, with editable filename, format,
   Included/Excluded lists and exact file preview. A download handoff remains
-  unconfirmed when the browser cannot confirm the filesystem result.
+  unconfirmed when the browser cannot confirm the filesystem result. The file
+  link stays valid for one minute, so the Home Assistant iOS/macOS app can ask
+  where to save it.
 - Optional periodic snapshots (30s–1h interval, 20–200 kept) for a
   browser-local state comparisons, independent of HA's recorder. Select two
   snapshots and export changed states with their observed timestamps.

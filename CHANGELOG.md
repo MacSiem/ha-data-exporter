@@ -1,3 +1,22 @@
+## 4.3.1 (2026-10-30)
+
+Fixes from issue #6 (Home Assistant iOS app, narrow dashboards):
+
+- Add **Select all within filters (N)** and **Clear selection (N)** above the
+  table in every layout. The narrow layout hides the table header, so 4.3.0 had
+  no select-all there. `show_select_all: false` hides the select-all button.
+- Keep the page still during periodic Home Assistant updates. Visible rows are
+  updated in place; domain, area and device pickers, filter chips and
+  pagination change only when their content changes. Expanded rows keep their
+  loaded history.
+- Fix Save in the Home Assistant iOS/macOS app, which failed with
+  NSURLErrorDomain -999. The download link stays valid while the app asks
+  where to save the file, and Save never leaves the app for a browser.
+- Count export columns for the export scope: the selected entities, or all
+  within filters. Column choices list only reviewed attributes, instead of
+  every attribute of every entity.
+- Word the scope note as "Selected: N; outside filters: N; matching filters: N".
+
 ## 4.3.0 (2026-10-29)
 
 - Fix issue #6: unrelated Home Assistant updates no longer erase a reviewed

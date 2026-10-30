@@ -1,4 +1,4 @@
-/* HA Tools split — ha-data-exporter v4.3.0 (2026-10-29) — single-tool standalone repo */
+/* HA Tools split — ha-data-exporter v4.3.1 (2026-10-30) — single-tool standalone repo */
 (function() {
 'use strict';
 
@@ -587,6 +587,8 @@ const DATA_ATTRIBUTE_ENUMS = Object.freeze({
   state_class: ['measurement', 'total', 'total_increasing'], hvac_action: ['off', 'idle', 'heating', 'cooling', 'drying', 'fan'],
   color_mode: ['onoff', 'brightness', 'color_temp', 'hs', 'xy', 'rgb', 'rgbw', 'rgbww', 'white']
 });
+// Blob URLs for Save stay valid long enough for WebKit download handoffs (issue #6).
+const DOWNLOAD_URL_LIFETIME_MS = 60000;
 const DATA_EXPORT_POLICY = Object.freeze({
   id: 'ha-data-exporter-reviewed-v1',
   allowlistedFields: ['entity_id', 'friendly_name', 'state', 'domain', 'last_changed', 'device_id', 'device_name', 'area_id', 'area_name', 'change', 'before_state', 'after_state', 'before_timestamp', 'after_timestamp', 'source',
@@ -3183,26 +3185,27 @@ canvas {
     const exportBtn = this.shadowRoot.getElementById('exportBtn');
     const pagination = this.shadowRoot.getElementById('pagination');
 
-    // Update domain filter
+    // Update domain filter. Issue #6: periodic hass updates rebuild the options
+    // only when domains or counts change, so an open picker and the page stay put.
     const domains = this._getDomains();
     const currentDomain = this._filterDomain;
-    domainFilter.innerHTML = '<option value="all">' + this._t.allDomains + ' (' + Object.keys(this._hass.states).length + ')</option>';
-    domains.forEach(d => {
-      const count = Object.keys(this._hass.states).filter(id => id.startsWith(d + '.')).length;
-      const opt = document.createElement('option');
-      opt.value = d;
-      opt.textContent = _esc(d) + ' (' + count + ')';
-      if (d === currentDomain) opt.selected = true;
-      domainFilter.appendChild(opt);
-    });
+    const stateIds = Object.keys(this._hass.states);
+    const domainOptions = [['all', this._t.allDomains + ' (' + stateIds.length + ')'], ...domains.map(d => [d, d + ' (' + stateIds.filter(id => id.startsWith(d + '.')).length + ')'])];
+    const domainSignature = JSON.stringify(domainOptions);
+    if (domainFilter.dataset.signature !== domainSignature) {
+      domainFilter.dataset.signature = domainSignature;
+      domainFilter.replaceChildren(...domainOptions.map(([value, text]) => { const opt = document.createElement('option'); opt.value = value; opt.textContent = text; return opt; }));
+    }
+    const domainValue = domains.includes(currentDomain) ? currentDomain : 'all';
+    if (domainFilter.value !== domainValue) domainFilter.value = domainValue;
 
     const mobileSort=this.shadowRoot.getElementById('mobileSort');
     if(mobileSort){
       const label=this.shadowRoot.getElementById('mobileSortLabel');label.textContent=this._lang==='pl'?'Sortuj:':'Sort by:';
       const labels={entity_id:this._t.entityId,name:this._t.name,state:this._t.state,domain:this._t.domain};
       const options=Object.entries(labels).flatMap(([key,name])=>['asc','desc'].map(direction=>`<option value="${key}:${direction}">${_esc(name)} ${direction==='asc'?'▲':'▼'}</option>`)).join('');
-      if(mobileSort.innerHTML!==options)mobileSort.innerHTML=options;
-      mobileSort.value=this._sortBy+':'+(this._sortAsc?'asc':'desc');
+      if(mobileSort.dataset.signature!==options){mobileSort.dataset.signature=options;mobileSort.innerHTML=options;}
+      const sortValue=this._sortBy+':'+(this._sortAsc?'asc':'desc');if(mobileSort.value!==sortValue)mobileSort.value=sortValue;
     }
     // Update sort arrows
     this.shadowRoot.querySelectorAll('th[data-sort]').forEach(th => {
@@ -3222,131 +3225,17 @@ canvas {
     const start = this._currentPage * pageSize;
     const pageEntities = entities.slice(start, start + pageSize);
 
-    // Render table
-    tbody.innerHTML = '';
-    if (pageEntities.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">' + this._t.noEntities + '</td></tr>';
-    } else {
-      pageEntities.forEach(ent => {
-        const tr = document.createElement('tr');
-        const checked = this._selectedEntities.has(ent.entity_id) ? 'checked' : '';
-        const attrs = ent.attributes || {};
-        const attrKeys = Object.keys(attrs).filter(k => k !== 'friendly_name');
-        const attrCount = attrKeys.length;
-        tr.innerHTML = `
-          <td class="checkbox-cell"><label class="touch-checkbox"><input type="checkbox" data-entity="${_esc(ent.entity_id)}" aria-label="${_esc(this._t.selectEntity + ' ' + ent.entity_id + ' (' + ent.name + ')')}" ${checked} /></label></td>
-          <td class="expand-cell"><button class="expand-btn" data-expand="${_esc(ent.entity_id)}" title="${this._t.showAttributes}" aria-label="${this._t.showAttributes}" aria-expanded="${this._expandedEntities.has(ent.entity_id)}" aria-controls="${_esc('details-' + ent.entity_id)}">▶</button></td>
-          <td class="entity-id" tabindex="0" title="${_esc(ent.entity_id)}">${_esc(ent.entity_id).replace(/[._]/g, '$&<wbr>')}</td>
-          <td class="entity-name" title="${_esc(ent.name)}">${_esc(ent.name)}</td>
-          <td class="state-val" title="${_esc(ent.state)}">${_esc(ent.state)}</td>
-          <td>${_esc(ent.domain)}</td>
-          <td><span class="attr-count">${attrCount}</span></td>
-        `;
-        tr.querySelector('input[type=checkbox]').addEventListener('change', (e) => {
-          if (e.target.checked) {
-            this._selectedEntities.add(ent.entity_id);
-          } else {
-            this._selectedEntities.delete(ent.entity_id);
-          }
-          this._updateStats();
-        });
-        tbody.appendChild(tr);
-
-        // Create expandable attribute row (hidden by default)
-        const attrRow = document.createElement('tr');
-        attrRow.className = 'attr-row';
-        attrRow.style.display = 'none';
-        attrRow.dataset.attrFor = ent.entity_id;
-        attrRow.id = 'details-' + ent.entity_id;
-        const attrTd = document.createElement('td');
-        attrTd.colSpan = 7;
-        let attrHtml = '<div class="attr-container"><dl class="record-fields">' + Object.entries({ ...this._buildExportData([ent], this._registryMetadata || {entities:new Map(),devices:new Map(),areas:new Map()})[0], attributes: undefined, attribute_count: attrCount }).filter(([key]) => key !== 'attributes').map(([key,value]) => '<dt>' + _esc(key) + '</dt><dd>' + _esc(String(value ?? '')) + '</dd>').join('') + '</dl>';
-        // Attributes section
-        attrHtml += '<div class="attr-grid">';
-        if (attrKeys.length === 0) {
-          attrHtml += '<div class="attr-item"><span class="attr-val" style="color:var(--bento-text-muted)">' + this._t.noAttributes + '</span></div>';
-        } else {
-          attrKeys.sort().forEach(k => {
-            const v = attrs[k];
-            const isComplex = typeof v === 'object' && v !== null;
-            const displayVal = isComplex ? JSON.stringify(v) : String(v);
-            const valClass = isComplex ? 'attr-val complex' : 'attr-val';
-            attrHtml += `<div class="attr-item"><span class="attr-key">${_esc(k)}</span><span class="${valClass}" title="${_esc(displayVal).replace(/"/g, '&quot;')}">${_esc(displayVal)}</span></div>`;
-          });
-        }
-        attrHtml += '</div>';
-        // History from HA API
-        attrHtml += `<div class="history-section"><div class="history-title">\u{1F4C8} ${this._t.stateHistory}</div><div class="history-list" id="history-${ent.entity_id.replace(/\./g, '_')}"><span class="history-loading">${this._t.clickToLoad}</span></div></div>`;
-        // Snapshot history (persisted)
-        const snapHistory = this._getEntityHistory(ent.entity_id);
-        if (snapHistory.length > 0) {
-          const last10 = snapHistory.slice(-10).reverse();
-          attrHtml += '<div class="history-section"><div class="history-title">\u{1F4BE} ' + this._t.snapshotsTitle + ' (' + snapHistory.length + ' ' + this._t.snapshots + ')</div><div class="history-list">';
-          last10.forEach(h => {
-            const t = this._displayTimestamp(h.ts);
-            attrHtml += '<div class="history-item"><time class="history-time" datetime="' + _esc(this._timestampAttribute(h.ts)) + '">' + _esc(t) + '</time><span class="history-state">' + _esc(h.state) + '</span><span style="font-size:11px;color:var(--bento-text-secondary,#64748b);">' + _esc(h.attrs) + ' ' + this._t.attrs + '</span></div>';
-          });
-          attrHtml += '</div></div>';
-        }
-        attrHtml += '</div>';
-        attrTd.innerHTML = attrHtml;
-        attrRow.appendChild(attrTd);
-        tbody.appendChild(attrRow);
-
-        // Restore expanded state
-        if (!this._expandedEntities) this._expandedEntities = new Set();
-        if (this._expandedEntities.has(ent.entity_id)) {
-          attrRow.style.display = '';
-          tr.querySelector('.expand-btn').classList.add('expanded');
-          this._fetchHistory(ent.entity_id);
-        }
-
-        // Expand/collapse handler
-        tr.querySelector('.expand-btn').addEventListener('click', (e) => {
-          const btn = e.currentTarget;
-          const entityId = btn.dataset.expand;
-          const row = tbody.querySelector(`tr[data-attr-for="${entityId}"]`);
-          if (row.style.display === 'none') {
-            row.style.display = '';
-            btn.classList.add('expanded');
-            btn.setAttribute('aria-expanded', 'true');
-            this._expandedEntities.add(entityId);
-            this._fetchHistory(entityId);
-          } else {
-            row.style.display = 'none';
-            btn.classList.remove('expanded');
-            btn.setAttribute('aria-expanded', 'false');
-            this._expandedEntities.delete(entityId);
-          }
-        });
-      });
+    // Render table. Issue #6: when a periodic hass update leaves the visible page
+    // unchanged, rows are patched in place. The table never empties under the
+    // reader, and focus, scroll position and loaded history stay where they are.
+    const rowKey = JSON.stringify([this._lang, pageEntities.map(ent => ent.entity_id)]);
+    if (!(pageEntities.length && tbody.dataset.rowKey === rowKey && this._patchEntityRows(tbody, pageEntities))) {
+      tbody.dataset.rowKey = pageEntities.length ? rowKey : '';
+      this._buildEntityRows(tbody, pageEntities);
     }
 
-    // Pagination controls
-    pagination.innerHTML = `
-      <button id="prevPage" ${this._currentPage === 0 ? 'disabled' : ''}>\u25C0 ${this._t.previous}</button>
-      <span>${this._t.page} ${this._currentPage + 1} ${this._t.of} ${Math.max(1, totalPages)} (${entities.length})</span>
-      <button id="nextPage" ${this._currentPage >= totalPages - 1 ? 'disabled' : ''}>${this._t.next} \u25B6</button>
-      <div class="page-size-wrap">
-        <label>${this._t.show}</label>
-        <select id="pageSizeSelect">
-          ${[15, 25, 50, 100].map(s => `<option value="${s}" ${s === pageSize ? 'selected' : ''}>${s}</option>`).join('')}
-        </select>
-      </div>
-    `;
-    pagination.querySelector('#prevPage').addEventListener('click', () => {
-      this._currentPage--;
-      this._updateEntities();
-    });
-    pagination.querySelector('#nextPage').addEventListener('click', () => {
-      this._currentPage++;
-      this._updateEntities();
-    });
-    pagination.querySelector('#pageSizeSelect').addEventListener('change', (e) => {
-      this._pageSize = parseInt(e.target.value);
-      this._currentPage = 0;
-      this._updateEntities();
-    });
+    // Pagination controls keep their DOM; only text, state and value change.
+    this._refreshEntityPagination(pagination, entities.length, totalPages, pageSize);
 
     this._refreshFeatureLabels();
     this._updateStats();
@@ -3359,6 +3248,186 @@ canvas {
     }
   }
 
+  _entityAttrKeys(ent) {
+    return Object.keys(ent.attributes || {}).filter(k => k !== 'friendly_name');
+  }
+
+  _entityDetailParts(ent) {
+    const attrs = ent.attributes || {};
+    const attrKeys = this._entityAttrKeys(ent);
+    const fields = '<dl class="record-fields">' + Object.entries({ ...this._buildExportData([ent], this._registryMetadata || {entities:new Map(),devices:new Map(),areas:new Map()})[0], attributes: undefined, attribute_count: attrKeys.length }).filter(([key]) => key !== 'attributes').map(([key,value]) => '<dt>' + _esc(key) + '</dt><dd>' + _esc(String(value ?? '')) + '</dd>').join('') + '</dl>';
+    let grid = '<div class="attr-grid">';
+    if (attrKeys.length === 0) {
+      grid += '<div class="attr-item"><span class="attr-val" style="color:var(--bento-text-muted)">' + this._t.noAttributes + '</span></div>';
+    } else {
+      [...attrKeys].sort().forEach(k => {
+        const v = attrs[k];
+        const isComplex = typeof v === 'object' && v !== null;
+        const displayVal = isComplex ? JSON.stringify(v) : String(v);
+        const valClass = isComplex ? 'attr-val complex' : 'attr-val';
+        grid += `<div class="attr-item"><span class="attr-key">${_esc(k)}</span><span class="${valClass}" title="${_esc(displayVal).replace(/"/g, '&quot;')}">${_esc(displayVal)}</span></div>`;
+      });
+    }
+    grid += '</div>';
+    // Snapshot history (persisted)
+    let snapshots = '';
+    const snapHistory = this._getEntityHistory(ent.entity_id);
+    if (snapHistory.length > 0) {
+      const last10 = snapHistory.slice(-10).reverse();
+      snapshots = '<div class="history-section snapshot-history"><div class="history-title">\u{1F4BE} ' + this._t.snapshotsTitle + ' (' + snapHistory.length + ' ' + this._t.snapshots + ')</div><div class="history-list">';
+      last10.forEach(h => {
+        const t = this._displayTimestamp(h.ts);
+        snapshots += '<div class="history-item"><time class="history-time" datetime="' + _esc(this._timestampAttribute(h.ts)) + '">' + _esc(t) + '</time><span class="history-state">' + _esc(h.state) + '</span><span style="font-size:11px;color:var(--bento-text-secondary,#64748b);">' + _esc(h.attrs) + ' ' + this._t.attrs + '</span></div>';
+      });
+      snapshots += '</div></div>';
+    }
+    return { fields, grid, snapshots };
+  }
+
+  _setEntityExpanded(button, row, expanded) {
+    if (!this._expandedEntities) this._expandedEntities = new Set();
+    const entityId = row.dataset.attrFor;
+    row.style.display = expanded ? '' : 'none';
+    button.classList.toggle('expanded', expanded);
+    button.setAttribute('aria-expanded', String(expanded));
+    if (expanded) {
+      this._expandedEntities.add(entityId);
+      this._fetchHistory(entityId);
+    } else {
+      this._expandedEntities.delete(entityId);
+    }
+  }
+
+  _buildEntityRows(tbody, pageEntities) {
+    tbody.innerHTML = '';
+    if (pageEntities.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">' + this._t.noEntities + '</td></tr>';
+      return;
+    }
+    if (!this._expandedEntities) this._expandedEntities = new Set();
+    pageEntities.forEach(ent => {
+      const tr = document.createElement('tr');
+      const checked = this._selectedEntities.has(ent.entity_id) ? 'checked' : '';
+      const attrCount = this._entityAttrKeys(ent).length;
+      tr.innerHTML = `
+          <td class="checkbox-cell"><label class="touch-checkbox"><input type="checkbox" data-entity="${_esc(ent.entity_id)}" aria-label="${_esc(this._t.selectEntity + ' ' + ent.entity_id + ' (' + ent.name + ')')}" ${checked} /></label></td>
+          <td class="expand-cell"><button class="expand-btn" data-expand="${_esc(ent.entity_id)}" title="${this._t.showAttributes}" aria-label="${this._t.showAttributes}" aria-expanded="false" aria-controls="${_esc('details-' + ent.entity_id)}">▶</button></td>
+          <td class="entity-id" tabindex="0" title="${_esc(ent.entity_id)}">${_esc(ent.entity_id).replace(/[._]/g, '$&<wbr>')}</td>
+          <td class="entity-name" title="${_esc(ent.name)}">${_esc(ent.name)}</td>
+          <td class="state-val" title="${_esc(ent.state)}">${_esc(ent.state)}</td>
+          <td>${_esc(ent.domain)}</td>
+          <td><span class="attr-count">${attrCount}</span></td>
+        `;
+      tr.querySelector('input[type=checkbox]').addEventListener('change', (e) => {
+        if (e.target.checked) {
+          this._selectedEntities.add(ent.entity_id);
+        } else {
+          this._selectedEntities.delete(ent.entity_id);
+        }
+        this._updateStats();
+      });
+      tbody.appendChild(tr);
+
+      // Expandable attribute row (hidden by default)
+      const attrRow = document.createElement('tr');
+      attrRow.className = 'attr-row';
+      attrRow.style.display = 'none';
+      attrRow.dataset.attrFor = ent.entity_id;
+      attrRow.id = 'details-' + ent.entity_id;
+      const attrTd = document.createElement('td');
+      attrTd.colSpan = 7;
+      const parts = this._entityDetailParts(ent);
+      // History from HA API is loaded on expand and kept while the row is patched.
+      const history = `<div class="history-section"><div class="history-title">\u{1F4C8} ${this._t.stateHistory}</div><div class="history-list" id="history-${ent.entity_id.replace(/\./g, '_')}"><span class="history-loading">${this._t.clickToLoad}</span></div></div>`;
+      attrTd.innerHTML = '<div class="attr-container">' + parts.fields + parts.grid + history + parts.snapshots + '</div>';
+      attrRow._detailParts = parts;
+      attrRow.appendChild(attrTd);
+      tbody.appendChild(attrRow);
+
+      const expand = tr.querySelector('.expand-btn');
+      if (this._expandedEntities.has(ent.entity_id)) this._setEntityExpanded(expand, attrRow, true);
+      expand.addEventListener('click', (e) => {
+        const btn = e.currentTarget;
+        const row = btn.closest('tr').nextElementSibling;
+        this._setEntityExpanded(btn, row, row.style.display === 'none');
+      });
+    });
+  }
+
+  _patchEntityRows(tbody, pageEntities) {
+    const inputs = new Map(Array.from(tbody.querySelectorAll('input[data-entity]')).map(input => [input.dataset.entity, input]));
+    if (inputs.size !== pageEntities.length) return false;
+    const rows = [];
+    for (const ent of pageEntities) {
+      const input = inputs.get(ent.entity_id), tr = input?.closest('tr'), attrRow = tr?.nextElementSibling;
+      if (!tr || attrRow?.dataset.attrFor !== ent.entity_id || !attrRow._detailParts) return false;
+      rows.push([ent, input, tr, attrRow]);
+    }
+    for (const [ent, input, tr, attrRow] of rows) {
+      const checked = this._selectedEntities.has(ent.entity_id);
+      if (input.checked !== checked) input.checked = checked;
+      const label = this._t.selectEntity + ' ' + ent.entity_id + ' (' + ent.name + ')';
+      if (input.getAttribute('aria-label') !== label) input.setAttribute('aria-label', label);
+      for (const [selector, value] of [['.entity-name', String(ent.name ?? '')], ['.state-val', String(ent.state ?? '')]]) {
+        const cell = tr.querySelector(selector);
+        if (cell.textContent !== value) cell.textContent = value;
+        if (cell.getAttribute('title') !== value) cell.setAttribute('title', value);
+      }
+      const count = tr.querySelector('.attr-count'), attrCount = String(this._entityAttrKeys(ent).length);
+      if (count.textContent !== attrCount) count.textContent = attrCount;
+      const parts = this._entityDetailParts(ent), previous = attrRow._detailParts, container = attrRow.querySelector('.attr-container');
+      if (parts.fields !== previous.fields) container.querySelector('.record-fields').outerHTML = parts.fields;
+      if (parts.grid !== previous.grid) container.querySelector('.attr-grid').outerHTML = parts.grid;
+      if (parts.snapshots !== previous.snapshots) {
+        container.querySelector('.snapshot-history')?.remove();
+        if (parts.snapshots) container.insertAdjacentHTML('beforeend', parts.snapshots);
+      }
+      attrRow._detailParts = parts;
+      const expanded = this._expandedEntities.has(ent.entity_id);
+      if ((attrRow.style.display !== 'none') !== expanded) this._setEntityExpanded(tr.querySelector('.expand-btn'), attrRow, expanded);
+    }
+    return true;
+  }
+
+  _refreshEntityPagination(pagination, total, totalPages, pageSize) {
+    const sizes = Array.from(new Set([15, 25, 50, 100, pageSize])).sort((a, b) => a - b);
+    const signature = JSON.stringify([this._lang, sizes]);
+    if (pagination.dataset.signature !== signature || !pagination.querySelector('#prevPage')) {
+      pagination.dataset.signature = signature;
+      pagination.innerHTML = `
+      <button id="prevPage">◀ ${this._t.previous}</button>
+      <span id="pageStatus"></span>
+      <button id="nextPage">${this._t.next} ▶</button>
+      <div class="page-size-wrap">
+        <label>${this._t.show}</label>
+        <select id="pageSizeSelect">
+          ${sizes.map(s => `<option value="${s}">${s}</option>`).join('')}
+        </select>
+      </div>
+    `;
+      pagination.querySelector('#prevPage').addEventListener('click', () => {
+        this._currentPage--;
+        this._updateEntities();
+      });
+      pagination.querySelector('#nextPage').addEventListener('click', () => {
+        this._currentPage++;
+        this._updateEntities();
+      });
+      pagination.querySelector('#pageSizeSelect').addEventListener('change', (e) => {
+        this._pageSize = parseInt(e.target.value);
+        this._currentPage = 0;
+        this._updateEntities();
+      });
+    }
+    pagination.querySelector('#prevPage').disabled = this._currentPage === 0;
+    pagination.querySelector('#nextPage').disabled = this._currentPage >= totalPages - 1;
+    const status = pagination.querySelector('#pageStatus');
+    const text = `${this._t.page} ${this._currentPage + 1} ${this._t.of} ${Math.max(1, totalPages)} (${total})`;
+    if (status.textContent !== text) status.textContent = text;
+    const size = pagination.querySelector('#pageSizeSelect');
+    if (size.value !== String(pageSize)) size.value = String(pageSize);
+  }
+
   _updateStats() {
     this._syncExportContext();
     const exportBtn = this.shadowRoot.getElementById('exportBtn');
@@ -3368,8 +3437,18 @@ canvas {
     exportBtn.disabled = (this.shadowRoot.getElementById('previewMode')?.value === 'all' ? this._getFilteredEntities().length : count) === 0;
     this._refreshActiveFilters();
     this._refreshColumnSummary();
+    // An open column picker follows the export scope as the selection changes.
+    const columnControls = this.shadowRoot.getElementById('columnControls');
+    if (columnControls && this.shadowRoot.getElementById('exportColumns')?.open && columnControls.dataset.available !== JSON.stringify(this._availableColumns())) this._refreshColumnControls();
     const note = this.shadowRoot.getElementById('selectionScope');
-    if (note) { const visible = new Set(this._getFilteredEntities().map(e => e.entity_id)); const outside = this._getSelectedEntities().filter(e => !visible.has(e.entity_id)).length; note.textContent = this._lang === 'pl' ? `Zaznaczone: ${count}; w filtrach: ${visible.size}; poza filtrami: ${outside}.` : `Selected: ${count}; within filters: ${visible.size}; outside filters: ${outside}.`; const explanation=this._lang==='pl'?'Eksport zaznaczonych obejmuje także encje poza filtrami.':'Selected export includes entities outside filters.'; note.title=explanation; note.setAttribute('aria-label',note.textContent+' '+explanation); }
+    const selectFiltered = this.shadowRoot.getElementById('selectFiltered'), clearSelection = this.shadowRoot.getElementById('clearSelection');
+    if (selectFiltered && clearSelection) {
+      const filteredCount = this._getFilteredEntities().length;
+      selectFiltered.textContent = this._lang === 'pl' ? `Zaznacz wszystkie w filtrach (${filteredCount})` : `Select all within filters (${filteredCount})`;
+      selectFiltered.hidden = this._config.show_select_all === false;
+      clearSelection.textContent = this._lang === 'pl' ? `Wyczyść zaznaczenie (${count})` : `Clear selection (${count})`;
+    }
+    if (note) { const visible = new Set(this._getFilteredEntities().map(e => e.entity_id)); const outside = this._getSelectedEntities().filter(e => !visible.has(e.entity_id)).length; note.textContent = this._lang === 'pl' ? `Zaznaczone: ${count}; poza filtrami: ${outside}; pasujące do filtrów: ${visible.size}.` : `Selected: ${count}; outside filters: ${outside}; matching filters: ${visible.size}.`; const explanation=this._lang==='pl'?'Eksport zaznaczonych obejmuje także encje poza filtrami.':'Selected export includes entities outside filters.'; note.title=explanation; note.setAttribute('aria-label',note.textContent+' '+explanation); }
   }
 
   async _loadRegistryMetadata() {
@@ -3534,11 +3613,17 @@ canvas {
       buildPayload: request => this._buildReviewedExport(mode, request),
       performDownload: ({ blob, filename, signal }) => {
         if (signal.aborted || !this._exportConnected()) return { outcome: 'unknown' };
+        // Issue #6: the Home Assistant iOS/macOS app hands the blob URL to a
+        // WKDownload that asks for a destination asynchronously. Revoking the
+        // URL right after click() cancels it (NSURLErrorDomain -999), so the URL
+        // stays alive for a minute. The anchor is attached while clicked, and
+        // has no target: target=_blank would leave the app for a browser.
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
-        anchor.href = url; anchor.download = filename;
+        anchor.href = url; anchor.download = filename; anchor.rel = 'noopener'; anchor.style.display = 'none';
+        document.body.appendChild(anchor);
         try { anchor.click(); }
-        finally { setTimeout(() => URL.revokeObjectURL(url), 0); }
+        finally { anchor.remove(); setTimeout(() => URL.revokeObjectURL(url), DOWNLOAD_URL_LIFETIME_MS); }
         return { outcome: 'initiated' };
       }
     });
@@ -3848,6 +3933,12 @@ canvas {
     mobileSort.innerHTML='<span id="mobileSortLabel"></span><select id="mobileSort"></select>';
     this.shadowRoot.querySelector('.table-container').before(mobileSort);
     mobileSort.querySelector('select').addEventListener('change',event=>{const [field,direction]=event.target.value.split(':');this._sortBy=field;this._sortAsc=direction==='asc';this._currentPage=0;this._updateEntities();});
+    // Issue #6: the header checkbox is hidden in the narrow layout, so selection
+    // tools are visible controls in every layout.
+    const selectionTools=document.createElement('div');selectionTools.id='selectionTools';selectionTools.className='feature-controls';
+    selectionTools.innerHTML='<button type="button" id="selectFiltered" class="btn btn-secondary btn-sm"></button><button type="button" id="clearSelection" class="btn btn-secondary btn-sm"></button>';
+    selectionTools.querySelector('#selectFiltered').addEventListener('click',()=>{this._getFilteredEntities().forEach(entity=>this._selectedEntities.add(entity.entity_id));this._updateEntities();});
+    selectionTools.querySelector('#clearSelection').addEventListener('click',()=>{this._selectedEntities.clear();const header=this.shadowRoot.getElementById('selectAll');if(header)header.checked=false;this._updateEntities();});
     const controls = document.createElement('section');
     controls.className = 'feature-controls';
     controls.id = 'registryFilters';
@@ -3869,7 +3960,7 @@ canvas {
     const bar=document.createElement('section');bar.id='exportBar';bar.className='feature-controls';
     bar.innerHTML='<span id="selectionScope" role="status"></span><label><span data-feature-label="scope"></span><select id="previewMode"><option value="selected"></option><option value="all"></option></select></label>';
     bar.append(this.shadowRoot.getElementById('exportBtn'));
-    exportPanel.append(heading,toolbar,chips,controls,mobileSort,this.shadowRoot.querySelector('.table-container'),this.shadowRoot.getElementById('pagination'),columnsHeading,columns,bar);
+    exportPanel.append(heading,toolbar,chips,controls,mobileSort,selectionTools,this.shadowRoot.querySelector('.table-container'),this.shadowRoot.getElementById('pagination'),columnsHeading,columns,bar);
     records.append(this.shadowRoot.querySelector('.snapshot-bar'));
     const enabledTabs = this._config.tabs || ['export','records'];
     for (const name of ['export','records']) this.shadowRoot.getElementById(name+'Tab').hidden = !enabledTabs.includes(name);
@@ -3948,8 +4039,13 @@ canvas {
   _refreshActiveFilters() {
     const host=this.shadowRoot.getElementById('activeFilters');if(!host)return;
     const focusedKey=this.shadowRoot.activeElement?.dataset.clearFilter;
-    host.replaceChildren();const L=this._lang==='pl';
-    for(const [key,field,id,label] of [['domain','_filterDomain','domainFilter',L?'Domena':'Domain'],['search','_filterSearch','searchFilter',L?'Szukaj':'Search'],['area','_filterArea','areaFilter',L?'Obszar':'Area'],['device','_filterDevice','deviceFilter',L?'Urządzenie':'Device']]) {
+    const L=this._lang==='pl';
+    const filters=[['domain','_filterDomain','domainFilter',L?'Domena':'Domain'],['search','_filterSearch','searchFilter',L?'Szukaj':'Search'],['area','_filterArea','areaFilter',L?'Obszar':'Area'],['device','_filterDevice','deviceFilter',L?'Urządzenie':'Device']];
+    // Issue #6: periodic updates keep the chips (and a focused chip) unless a filter changed.
+    const signature=JSON.stringify([L,filters.map(([key,field,id])=>[key,this[field],this.shadowRoot.getElementById(id)?.selectedOptions?.[0]?.textContent||''])]);
+    if(host.dataset.signature===signature)return;
+    host.dataset.signature=signature;host.replaceChildren();
+    for(const [key,field,id,label] of filters) {
       const value=this[field];if(!value||value==='all')continue;
       const control=this.shadowRoot.getElementById(id),text=control.selectedOptions?.[0]?.textContent||value;
       const button=document.createElement('button');button.type='button';button.className='btn btn-secondary btn-sm';button.dataset.clearFilter=key;button.textContent=`${label}: ${text} ×`;button.setAttribute('aria-label',`${L?'Usuń filtr':'Remove filter'}: ${label}: ${text}`);
@@ -3973,11 +4069,12 @@ canvas {
     const L=this._lang==='pl', metadata=this._registryMetadata;
     for (const [id,entries,field,name] of [['areaFilter',metadata?.areas,'_filterArea','area'],['deviceFilter',metadata?.devices,'_filterDevice','device']]) {
       const select=this.shadowRoot.getElementById(id);if(!select)continue;
-      select.replaceChildren();
-      const add=(value,text)=>{const option=document.createElement('option');option.value=value;option.textContent=text;select.append(option);};
-      add('all',L?'Wszystkie':'All');add('__none__',L?(name==='area'?'Bez obszaru':'Bez urządzenia'):(name==='area'?'No area':'No device'));
-      if(entries) Array.from(entries.values()).sort((a,b)=>this._collator().compare(String(a.name_by_user||a.name||a.id||a.area_id),String(b.name_by_user||b.name||b.id||b.area_id))).forEach(entry=>add(name === 'area' ? entry.area_id : entry.id,entry.name_by_user||entry.name||entry.id||entry.area_id));
-      select.value=this[field];select.disabled=!metadata;
+      const choices=[['all',L?'Wszystkie':'All'],['__none__',L?(name==='area'?'Bez obszaru':'Bez urządzenia'):(name==='area'?'No area':'No device')]];
+      if(entries) Array.from(entries.values()).sort((a,b)=>this._collator().compare(String(a.name_by_user||a.name||a.id||a.area_id),String(b.name_by_user||b.name||b.id||b.area_id))).forEach(entry=>choices.push([name === 'area' ? entry.area_id : entry.id,entry.name_by_user||entry.name||entry.id||entry.area_id]));
+      // Issue #6: periodic updates keep the options (and an open picker) unless they change.
+      const signature=JSON.stringify(choices);
+      if(select.dataset.signature!==signature){select.dataset.signature=signature;select.replaceChildren(...choices.map(([value,text])=>{const option=document.createElement('option');option.value=value;option.textContent=text;return option;}));}
+      if(select.value!==this[field])select.value=this[field];select.disabled=!metadata;
     }
     for(const [id,label] of [['domainFilter',L?'Domena':'Domain'],['formatSelect',L?'Format pliku':'File format']])this.shadowRoot.getElementById(id)?.setAttribute('aria-label',label);
     const retry=this.shadowRoot.getElementById('retryRegistryFilters');if(retry)retry.hidden=this._registryStatus!=='unavailable';
@@ -3985,9 +4082,16 @@ canvas {
   }
 
   _availableColumns() {
-    const keys = new Set();
-    this._getFilteredEntities(false).forEach(entity => Object.keys(entity.attributes || {}).filter(key => key !== 'friendly_name').forEach(key => keys.add('attributes.' + key)));
+    // Issue #6: columns describe the current export scope (selected entities, or
+    // all within filters) and only reviewed attributes, never every HA entity.
+    const allowed = new Set(DATA_EXPORT_POLICY.allowlistedFields), keys = new Set();
+    this._exportScopeEntities().forEach(entity => Object.keys(entity.attributes || {}).forEach(key => { if (allowed.has('attributes.' + key)) keys.add('attributes.' + key); }));
     return ['entity_id','friendly_name','state','domain','last_changed','device_id','device_name','area_id','area_name', ...Array.from(keys).sort()];
+  }
+
+  _exportScopeEntities() {
+    const selected = this.shadowRoot?.getElementById('previewMode')?.value !== 'all' ? this._getSelectedEntities() : [];
+    return selected.length ? selected : this._getFilteredEntities();
   }
 
   _refreshColumnControls() {
@@ -3997,6 +4101,7 @@ canvas {
     this._refreshColumnSummary();
     const available=this._availableColumns();
     const selected=this._exportColumns ?? available;
+    container.dataset.available=JSON.stringify(available);
     container.replaceChildren();
     for(const key of [...selected,...available.filter(key=>!selected.includes(key))]) {
       const label=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.checked=selected.includes(key);check.setAttribute('aria-label',key);
@@ -4243,7 +4348,7 @@ canvas {
 if (!customElements.get('ha-data-exporter')) { customElements.define('ha-data-exporter', HADataExporter); }
 
 console.info(
-  '%c  HA-DATA-EXPORTER  %c v4.3.0 ',
+  '%c  HA-DATA-EXPORTER  %c v4.3.1 ',
   'background: #1976d2; color: #fff; font-weight: bold; padding: 2px 6px; border-radius: 4px 0 0 4px;',
   'background: #e3f2fd; color: #1976d2; font-weight: bold; padding: 2px 6px; border-radius: 0 4px 4px 0;'
 );

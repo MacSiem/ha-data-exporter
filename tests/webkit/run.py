@@ -56,7 +56,7 @@ def main():
     (run / 'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
     try:
         with (run / 'build.log').open('w') as log:
-            subprocess.run(['/usr/bin/xcrun', 'swiftc', '-swift-version', '5',
+            subprocess.run(['/usr/bin/xcrun', 'swiftc', '-swift-version', '5', '-parse-as-library',
                             '-module-cache-path', str(cache), '-framework', 'AppKit',
                             '-framework', 'WebKit', str(source_dir / 'Harness.swift'),
                             '-o', str(executable)], env=env, stdout=log, stderr=subprocess.STDOUT,

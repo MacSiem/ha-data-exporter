@@ -143,7 +143,12 @@ final class Harness: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKDo
     }
 }
 
-let app = NSApplication.shared
-let harness = Harness()
-app.delegate = harness
-app.run()
+@main
+struct Runner {
+    @MainActor static func main() {
+        let app = NSApplication.shared
+        let harness = Harness()
+        app.delegate = harness
+        app.run()
+    }
+}

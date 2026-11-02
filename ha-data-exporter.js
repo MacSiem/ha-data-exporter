@@ -149,8 +149,8 @@ function createExportDialog(options) {
   const doc = root.ownerDocument;
   const mime = { json: 'application/json;charset=utf-8', csv: 'text/csv;charset=utf-8', txt: 'text/plain;charset=utf-8', yaml: 'application/yaml;charset=utf-8' };
   const copy = {
-    en: { title: 'Export', filename: 'Filename', format: 'Format', private: 'Include reviewed private fields (this export only)', included: 'Included in the file', excluded: 'Excluded from the file', source: 'Source and limits', preview: 'Exact file content', save: 'Save', refresh: 'Refresh preview', cancel: 'Cancel', busy: 'Building preview… Save waits for confirmed bytes.', changed: 'Choices changed. Refresh preview before Save.', context: 'The selected data or your Home Assistant access changed. Choose Refresh preview to review the current data before saving.', unavailable: 'Source unavailable or unconfirmed. Reconnect or confirm the source, then refresh.', invalidFormat: 'Choose an allowed format: JSON, CSV, TXT or YAML as offered.', invalidName: 'Use a basename of 1–128 characters: no paths, control characters, reserved names or leading/trailing spaces.', extension: 'Filename must end with the selected extension. Edit the filename, then refresh.', timeout: 'Preview exceeded 10 seconds. Check the source and explicitly refresh.', buildError: 'Could not build a confirmed preview. Check the source and refresh.', unconfirmed: 'Bytes or source metadata are unconfirmed. Confirm the source and refresh.', noData: 'No confirmed file content. Select available data and refresh.', saving: 'Handing off the confirmed preview… Wait for the adapter result.', initiated: 'Download initiated. Saving to the filesystem is not confirmed. Refresh only for a new export intent.', saved: 'Save confirmed by the download adapter.', unknown: 'Download result unconfirmed. Check the previous attempt before explicitly refreshing for a new export intent.' },
-    pl: { title: 'Eksport', filename: 'Nazwa pliku', format: 'Format', private: 'Dołącz sprawdzone pola prywatne (tylko ten eksport)', included: 'W pliku jest', excluded: 'W pliku nie ma', source: 'Źródło i ograniczenia', preview: 'Dokładna zawartość pliku', save: 'Zapisz', refresh: 'Odśwież podgląd', cancel: 'Anuluj', busy: 'Przygotowywanie podglądu… Zapis wymaga potwierdzonej zawartości.', changed: 'Wybór zmieniony. Odśwież podgląd przed zapisem.', context: 'Wybrane dane lub Twój dostęp do Home Assistant zmieniły się. Wybierz Odśwież podgląd, sprawdź aktualne dane i zapisz plik.', unavailable: 'Źródło niedostępne lub niepotwierdzone. Połącz lub potwierdź źródło i odśwież.', invalidFormat: 'Wybierz dostępny format: JSON, CSV, TXT lub YAML z listy.', invalidName: 'Użyj nazwy pliku o długości 1–128 znaków: bez ścieżek, znaków sterujących, nazw zastrzeżonych i skrajnych spacji.', extension: 'Nazwa pliku musi mieć rozszerzenie wybranego formatu. Popraw nazwę i odśwież.', timeout: 'Podgląd przekroczył 10 sekund. Sprawdź źródło i jawnie odśwież.', buildError: 'Nie udało się przygotować potwierdzonego podglądu. Sprawdź źródło i odśwież.', unconfirmed: 'Zawartość lub opis źródła niepotwierdzony. Potwierdź źródło i odśwież.', noData: 'Brak potwierdzonej zawartości pliku. Wybierz dostępne dane i odśwież.', saving: 'Przekazywanie potwierdzonego podglądu… Poczekaj na wynik zapisu.', initiated: 'Pobieranie rozpoczęte. Zapis na dysku nie jest potwierdzony. Odśwież tylko dla nowej próby eksportu.', saved: 'Adapter pobierania potwierdził zapis.', unknown: 'Wynik pobierania niepotwierdzony. Sprawdź poprzednią próbę przed jawnym odświeżeniem dla nowego eksportu.' },
+    en: { title: 'Export', filename: 'Filename', format: 'Format', private: 'Include reviewed private fields (this export only)', included: 'Included in the file', excluded: 'Excluded from the file', source: 'Source and limits', preview: 'Exact file content', save: 'Save', refresh: 'Refresh preview', cancel: 'Cancel', busy: 'Building preview… Save waits for confirmed bytes.', stale: 'Home Assistant has newer data. Save keeps the exact preview shown here; choose Refresh preview to use the newer values.', changed: 'Choices changed. Refresh preview before Save.', context: 'The selected data or your Home Assistant access changed. Choose Refresh preview to review the current data before saving.', unavailable: 'Source unavailable or unconfirmed. Reconnect or confirm the source, then refresh.', invalidFormat: 'Choose an allowed format: JSON, CSV, TXT or YAML as offered.', invalidName: 'Use a basename of 1–128 characters: no paths, control characters, reserved names or leading/trailing spaces.', extension: 'Filename must end with the selected extension. Edit the filename, then refresh.', timeout: 'Preview exceeded 10 seconds. Check the source and explicitly refresh.', buildError: 'Could not build a confirmed preview. Check the source and refresh.', unconfirmed: 'Bytes or source metadata are unconfirmed. Confirm the source and refresh.', noData: 'No confirmed file content. Select available data and refresh.', saving: 'Handing off the confirmed preview… Wait for the adapter result.', initiated: 'Download initiated. Saving to the filesystem is not confirmed. Refresh only for a new export intent.', saved: 'Save confirmed by the download adapter.', unknown: 'Download result unconfirmed. Check the previous attempt before explicitly refreshing for a new export intent.' },
+    pl: { title: 'Eksport', filename: 'Nazwa pliku', format: 'Format', private: 'Dołącz sprawdzone pola prywatne (tylko ten eksport)', included: 'W pliku jest', excluded: 'W pliku nie ma', source: 'Źródło i ograniczenia', preview: 'Dokładna zawartość pliku', save: 'Zapisz', refresh: 'Odśwież podgląd', cancel: 'Anuluj', busy: 'Przygotowywanie podglądu… Zapis wymaga potwierdzonej zawartości.', stale: 'Home Assistant ma nowsze dane. Zapisz zachowuje dokładnie widoczny podgląd; wybierz Odśwież podgląd, aby użyć nowszych wartości.', changed: 'Wybór zmieniony. Odśwież podgląd przed zapisem.', context: 'Wybrane dane lub Twój dostęp do Home Assistant zmieniły się. Wybierz Odśwież podgląd, sprawdź aktualne dane i zapisz plik.', unavailable: 'Źródło niedostępne lub niepotwierdzone. Połącz lub potwierdź źródło i odśwież.', invalidFormat: 'Wybierz dostępny format: JSON, CSV, TXT lub YAML z listy.', invalidName: 'Użyj nazwy pliku o długości 1–128 znaków: bez ścieżek, znaków sterujących, nazw zastrzeżonych i skrajnych spacji.', extension: 'Nazwa pliku musi mieć rozszerzenie wybranego formatu. Popraw nazwę i odśwież.', timeout: 'Podgląd przekroczył 10 sekund. Sprawdź źródło i jawnie odśwież.', buildError: 'Nie udało się przygotować potwierdzonego podglądu. Sprawdź źródło i odśwież.', unconfirmed: 'Zawartość lub opis źródła niepotwierdzony. Potwierdź źródło i odśwież.', noData: 'Brak potwierdzonej zawartości pliku. Wybierz dostępne dane i odśwież.', saving: 'Przekazywanie potwierdzonego podglądu… Poczekaj na wynik zapisu.', initiated: 'Pobieranie rozpoczęte. Zapis na dysku nie jest potwierdzony. Odśwież tylko dla nowej próby eksportu.', saved: 'Adapter pobierania potwierdził zapis.', unknown: 'Wynik pobierania niepotwierdzony. Sprawdź poprzednią próbę przed jawnym odświeżeniem dla nowego eksportu.' },
   };
   const css = `
 [data-ha-tools-export] { min-width:0;max-width:100%;color:var(--primary-text-color,#1e293b);font:inherit; }
@@ -189,7 +189,7 @@ function createExportDialog(options) {
 @media (max-width:399px) { [data-ha-tools-export] .ht-export-body { padding:16px; } [data-ha-tools-export] .ht-export-actions { padding:12px 16px;gap:6px; } }
 @media (max-width:319px) { [data-ha-tools-export] dialog { width:calc(100vw - 16px); } [data-ha-tools-export] .ht-export-actions button { flex:1 1 auto; } }
 `;  let container, nodes, L, ui, opener, alive = false, destroyed = false, serial = 0;
-  let pending = null, handoff = null, ready = null, observed = null;
+  let pending = null, handoff = null, ready = null, observed = null, dataStale = false;
   const listeners = [];
   const on = (target, event, handler, capture = false) => {
     target.addEventListener(event, handler, capture);
@@ -232,7 +232,7 @@ function createExportDialog(options) {
     job.timer = null; job.controller.abort();
   }
   function discard(resetPrivate = false) {
-    serial++; stop(pending); pending = null; ready = null;
+    serial++; stop(pending); pending = null; ready = null; dataStale = false;
     if (alive) {
       nodes.preview.textContent = ''; nodes.included.replaceChildren(); nodes.excluded.replaceChildren(); nodes['source-limit'].textContent = '';
       if (resetPrivate) nodes.private.checked = false;
@@ -245,6 +245,11 @@ function createExportDialog(options) {
     // callback and retain the prohibition on a second write until it settles.
     if (handoff) handoff.controller.abort();
     status(root.isConnected && available(observed) ? 'unconfirmed' : 'no_data', 'context');
+  }
+  function dataChanged() {
+    if (!alive || (!ready && !pending)) return;
+    dataStale = true;
+    if (ready) nodes.message.textContent = ` ${L.stale}`;
   }
   function validContext(original) {
     const current = readContext();
@@ -294,7 +299,7 @@ function createExportDialog(options) {
       nodes.preview.textContent = ready.serialized;
       fillList(nodes.included, [...included]); fillList(nodes.excluded, [...excluded]);
       nodes['source-limit'].textContent = sourceLimit;
-      pending = null; status(resultState, 'changed'); nodes.message.textContent = '';
+      pending = null; status(resultState, 'changed'); nodes.message.textContent = dataStale ? ` ${L.stale}` : '';
     } catch {
       if (!alive || pending !== job || job.id !== serial) return;
       if (clock() - job.started >= 10000) { timeout(); return; }
@@ -422,7 +427,7 @@ function createExportDialog(options) {
     if (container) container.classList.toggle('bento-dark', !!root.host?.classList.contains('bento-dark'));
   }
   function destroy() { cancel(); destroyed = true; }
-  return Object.freeze({ open, cancel, contextChanged, updateTheme, destroy });
+  return Object.freeze({ open, cancel, contextChanged, dataChanged, updateTheme, destroy });
 }
 // END VENDORED ha-tools-export.js
 
@@ -3507,18 +3512,16 @@ canvas {
 
   _syncExportContext() {
     const map = value => value ? Array.from(value.entries()) : null;
-    // A live HA update is not necessarily a change to this export. Bind review
-    // to its actual ordered rows (including selected rows hidden by filters),
-    // not to every entity in the house. Keep raw membership separate from the
-    // reviewed projection so redacted IDs cannot conceal a removed/replaced row.
+    // Review owns immutable serialized bytes. Measurement updates only mark
+    // those bytes as older; access, membership and explicit choices still fence
+    // them. Sort membership so a live value changing row order cannot erase it.
     const mode = this._exportMode || 'all';
     const hasStates = !!this._hass?.states && typeof this._hass.states === 'object';
     const source = mode === 'diff'
       ? this._comparison.map(index => this._snapshotChoices()[index] ?? null)
-      : hasStates ? [
-        (mode === 'selected' ? this._getSelectedEntities() : this._getFilteredEntities()).map(entity => entity.entity_id),
-        this._reviewedExportRows(mode, true)
-      ] : null;
+      : hasStates ? (mode === 'selected' ? this._getSelectedEntities() : this._getFilteredEntities())
+        .map(entity => entity.entity_id).sort() : null;
+    const dataSignature = JSON.stringify(mode === 'diff' ? source : hasStates ? this._reviewedExportRows(mode, true) : null);
     const signature = JSON.stringify([
       this._identityEpoch, this._exportHandle(this._hass?.connection), this._exportConnected(),
       this._hass?.user?.id ?? null, this._hass?.user?.is_admin === true, this._hass?.user?.is_owner === true,
@@ -3530,10 +3533,15 @@ canvas {
       this.shadowRoot.getElementById('formatSelect')?.value ?? this._config.default_format,
       this._exportMode
     ]);
-    if (signature !== this._exportSignature) {
+    const contextChanged = signature !== this._exportSignature;
+    const dataChanged = dataSignature !== this._exportDataSignature;
+    this._exportDataSignature = dataSignature;
+    if (contextChanged) {
       this._exportSignature = signature;
       this._exportRevision++;
       this._exportDialog?.contextChanged();
+    } else if (dataChanged) {
+      this._exportDialog?.dataChanged();
     }
   }
 
@@ -3748,6 +3756,8 @@ canvas {
     const excluded = [PL ? 'Tokeny, użytkownicy, adresy (URL, e-mail, IP, MAC i pocztowe), surowa konfiguracja — zawsze pominięte.' : 'Tokens, users, addresses (URL, email, IP, MAC and postal), raw configuration — always excluded.',
       PL ? 'Dowolne teksty stanów i atrybutów, nieznane atrybuty, niebezpieczne etykiety/ID; brakujące lub odrzucone komórki = null; niesprawdzone nazwy kolumn = excluded-column-N.' : 'Arbitrary state/attribute strings, unknown attributes and unsafe labels/IDs; missing or excluded cells = null; unreviewed column names use excluded-column-N.'];
     const sourceLimit = `${PL ? 'Wiersze' : 'Rows'}: ${rows.length}; ${scope}. `
+      + `${PL ? 'Podgląd utworzony' : 'Preview created'}: ${new Date().toISOString()}. `
+      + (PL ? 'Zapis zachowuje dokładnie ten podgląd. ' : 'Save keeps this exact preview. ')
       + (mode === 'diff' ? (PL ? 'Wyłącznie snapshoty lokalne tej przeglądarki; bez historii serwera i interpolacji; brak encji = null. Starsze snapshoty bez zapisanej klasyfikacji eksportu pomijają wartości liczbowe. ' : 'Only browser-local snapshots; no server history or interpolation; absent entity = null. Older snapshots without saved export classification omit numeric states. ')
         : (PL ? 'Tylko stany dostarczone do karty przez Home Assistant. ' : 'Only Home Assistant states actually supplied to this card. '))
       + (partial ? (PL ? 'Metadane rejestrów niedostępne lub niewczytane; obszary i urządzenia nie są zgadywane. Eksport częściowy.' : 'Registry metadata unavailable or not loaded; no guessed areas or devices. Partial export.')

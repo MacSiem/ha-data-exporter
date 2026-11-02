@@ -83,7 +83,7 @@ test('snapshot diff is local, pseudonymized and retains numeric/unknown/absent n
   const bytes=f.node('preview').textContent,data=JSON.parse(bytes);assert.equal(bytes.includes('sensor.zero'),false);assert.equal(bytes.includes('CANARY-DIFF'),false);assert.match(data.source_limit,/browser-local/);assert.ok(data.rows.some(r=>r.before_state===0&&r.after_state==='unknown'));assert.ok(data.rows.some(r=>r.before_state===null));assert.ok(data.rows.some(r=>r.after_state===null));
  }finally{f.close();}
 });
-for(const mutate of ['filter','selection','columns','attrs','comparison','state','registry','role','offline','language','config'])test(`${mutate} context invalidates ready bytes; restoration uses a newer revision`,async()=>{
+for(const mutate of ['filter','selection','columns','attrs','comparison','registry','role','offline','language','config'])test(`${mutate} context invalidates ready bytes; restoration uses a newer revision`,async()=>{
  const f=fixture();try{await f.open();const first=f.card._getExportContext().revision;
   const actions={filter:()=>{f.card._filterSearch='zero';f.card._updateEntities();},selection:()=>{f.card._selectedEntities.add('sensor.zero');f.card._updateStats();},columns:()=>{f.card._exportColumns=['state'];f.card._refreshColumnControls();},attrs:()=>{f.root.querySelector('#includeAttrs').click();},comparison:()=>{f.card._comparison=[0,1];f.card._refreshComparisonControls();},state:()=>{f.states['sensor.zero'].state='1';f.card.hass=f.hass;},registry:()=>{f.card._registryStatus='unavailable';f.card._refreshRegistryControls();},role:()=>{f.card.hass={...f.hass,user:{id:'other',is_admin:true}};},offline:()=>{f.connection.connected=false;f.card.hass=f.hass;},language:()=>{f.card.hass={...f.hass,language:'pl'};},config:()=>f.card.setConfig({show_support:false,page_size:15})};actions[mutate]();await tick();
   assert.ok(f.card._getExportContext().revision>first);if(f.dialog()){assert.equal(f.node('preview').textContent,'');assert.equal(f.node('save').disabled,true);f.node('save').click();}assert.equal(f.anchors.length,0);
@@ -121,7 +121,7 @@ test('selected export keeps hidden selections protected and refreshes changed re
   f.states['sensor.text'].state='other';f.card.hass={...f.hass};await tick();
   assert.equal(f.node('preview').textContent,bytes);
   f.states['switch.a'].state='off';f.card.hass={...f.hass};await tick();
-  assert.equal(f.node('preview').textContent,'');assert.equal(f.node('save').disabled,true);
+  assert.equal(f.node('preview').textContent,bytes);assert.equal(f.node('save').disabled,false);
   f.node('refresh').click();await tick();assert.match(f.node('preview').textContent,/off/);assert.equal(f.node('save').disabled,false);
   delete f.states['switch.a'];f.card.hass={...f.hass};await tick();
   assert.equal(f.node('preview').textContent,'');assert.equal(f.anchors.length,0);
@@ -290,5 +290,21 @@ test('changing the HA theme updates an open review without rebuilding bytes or c
    assert.equal(f.node('preview').textContent,bytes);assert.equal(f.blobs.length,blobs);
    assert.equal(f.card._getExportContext().revision,revision);assert.equal(f.node('private').checked,false);
   }
+ }finally{f.close();}
+});
+
+for (const format of ['csv', 'json', 'yaml']) test(`live ${format} review stays savable with exact frozen bytes while its sensors update`, async () => {
+ const f=fixture();try {
+  f.root.querySelector('#formatSelect').value=format;
+  await f.open();const bytes=f.node('preview').textContent, blob=f.blobs.at(-1);
+  for(let i=1;i<=5;i++) {
+   f.states['sensor.zero']={...f.states['sensor.zero'],state:String(i),last_changed:`2026-11-02T12:00:0${i}Z`};
+   f.card.hass={...f.hass,states:{...f.states}};await tick();
+   assert.equal(f.node('preview').textContent,bytes);
+   assert.equal(f.node('save').disabled,false);
+   assert.match(f.node('message').textContent,/newer data/i);
+  }
+  f.node('save').click();f.node('save').click();await tick();
+  assert.equal(f.anchors.length,1);assert.equal(await blob.text(),bytes);
  }finally{f.close();}
 });

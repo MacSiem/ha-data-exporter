@@ -215,8 +215,9 @@ in the dashboard, while other users can change the export and snapshot controls.
 - Native review dialog before every export, with editable filename, format,
   Included/Excluded lists and exact file preview. A download handoff remains
   unconfirmed when the browser cannot confirm the filesystem result. The file
-  link stays valid for one minute, so the Home Assistant iOS/macOS app can ask
-  where to save it.
+  link stays valid for one minute. The reported iOS cancellation error
+  `NSURLErrorDomain -999` remains under investigation; this does not confirm
+  a successful save on iOS.
 - Optional periodic snapshots (30s–1h interval, 20–200 kept) for a
   browser-local state comparisons, independent of HA's recorder. Select two
   snapshots and export changed states with their observed timestamps.

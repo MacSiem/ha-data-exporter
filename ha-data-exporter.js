@@ -3621,11 +3621,9 @@ canvas {
       buildPayload: request => this._buildReviewedExport(mode, request),
       performDownload: ({ blob, filename, signal }) => {
         if (signal.aborted || !this._exportConnected()) return { outcome: 'unknown' };
-        // Issue #6: the Home Assistant iOS/macOS app hands the blob URL to a
-        // WKDownload that asks for a destination asynchronously. Revoking the
-        // URL right after click() cancels it (NSURLErrorDomain -999), so the URL
-        // stays alive for a minute. The anchor is attached while clicked, and
-        // has no target: target=_blank would leave the app for a browser.
+        // Keep the URL alive for asynchronous browser/app download handoff.
+        // This is not proof of a native save or of the cause of iOS error -999.
+        // The attached anchor has no target, avoiding a new browsing context.
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement('a');
         anchor.href = url; anchor.download = filename; anchor.rel = 'noopener'; anchor.style.display = 'none';

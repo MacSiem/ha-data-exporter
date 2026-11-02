@@ -1,0 +1,9 @@
+{
+  "runtime_sha256": "fa8b799a83eb71a785db47f5f20b8f5f5a044416f022c7fb6361ca992c161287",
+  "ha": "2026.10.2",
+  "width": 390,
+  "height": 844,
+  "data": "65 synthetic QA sensors; no household data",
+  "scenario": "Review survives sensor update, freshness notice and Save visible",
+  "date": "2026-11-02"
+}

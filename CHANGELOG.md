@@ -1,3 +1,13 @@
+## 4.3.2 (2026-11-02)
+
+- Keep a reviewed export ready while its live sensor values and timestamps
+  update. Save uses exactly the frozen preview; a localized notice offers
+  Refresh preview for newer values. Show the preview creation timestamp.
+- Preserve revocation on access/connection changes, missing entities and
+  changes to export choices. An export intent still permits only one handoff.
+- Correct the earlier iOS Save claim: the reporter still sees cancellation
+  error `NSURLErrorDomain -999` on 4.3.1. Its cause remains unconfirmed.
+
 ## 4.3.1 (2026-10-30)
 
 Fixes from issue #6 (Home Assistant iOS app, narrow dashboards):
@@ -9,9 +19,10 @@ Fixes from issue #6 (Home Assistant iOS app, narrow dashboards):
   updated in place; domain, area and device pickers, filter chips and
   pagination change only when their content changes. Expanded rows keep their
   loaded history.
-- Fix Save in the Home Assistant iOS/macOS app, which failed with
-  NSURLErrorDomain -999. The download link stays valid while the app asks
-  where to save the file, and Save never leaves the app for a browser.
+- Keep the download link alive for one minute when handing the file to the
+  browser/app. This attempted mitigation did not resolve the reported
+  `NSURLErrorDomain -999` cancellation on iOS (retested by the reporter on
+  November 2); a successful native iOS save was not verified.
 - Count export columns for the export scope: the selected entities, or all
   within filters. Column choices list only reviewed attributes, instead of
   every attribute of every entity.

@@ -308,3 +308,22 @@ for (const format of ['csv', 'json', 'yaml']) test(`live ${format} review stays 
   assert.equal(f.anchors.length,1);assert.equal(await blob.text(),bytes);
  }finally{f.close();}
 });
+
+test('live state sort reorder preserves frozen bytes; source removal still revokes them', async()=>{
+ const f=fixture();try{
+  f.card._sortBy='state';f.card._updateEntities();await f.open();const bytes=f.node('preview').textContent;
+  f.states['sensor.zero'].state='999';f.card.hass={...f.hass};await tick();
+  assert.equal(f.node('preview').textContent,bytes);assert.equal(f.node('save').disabled,false);
+  delete f.states['sensor.zero'];f.card.hass={...f.hass};await tick();
+  assert.equal(f.node('preview').textContent,'');assert.equal(f.node('save').disabled,true);
+ }finally{f.close();}
+});
+test('update during pending preview retains freshness warning without aborting its exact bytes', async()=>{
+ const f=fixture();try{
+  const build=f.card._buildReviewedExport.bind(f.card);let complete;
+  f.card._buildReviewedExport=(mode,args)=>new Promise(resolve=>{const payload=build(mode,args);complete=()=>resolve(payload);});
+  await f.open();f.states['sensor.zero'].state='7';f.card.hass={...f.hass};await tick();complete();await tick();
+  assert.equal(f.node('save').disabled,false);assert.match(f.node('message').textContent,/newer data/i);
+  const bytes=f.node('preview').textContent;f.node('save').click();await tick();assert.equal(await f.blobs.at(-1).text(),bytes);assert.equal(f.anchors.length,1);
+ }finally{f.close();}
+});

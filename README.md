@@ -53,10 +53,13 @@ system/browser. Your Home Assistant profile can explicitly choose server time,
 changes remain distinguishable. Raw timestamps and export values keep their
 original representation.
 
-Updates to unrelated entities do not erase a reviewed filtered export. If the
-selected data or your Home Assistant access changes, use **Refresh preview** and
-review the current contents before saving. A saved comparison is independent of
-later live state changes; access changes still cancel its review.
+Each preview freezes the exact file contents and shows when it was created.
+Live sensor updates do not erase it or disable Save: a notice tells you when
+Home Assistant has newer values. **Save** keeps the reviewed bytes;
+**Refresh preview** builds a new file from the current values. Changes to the
+export choices, entity membership, source availability or Home Assistant
+access still require a fresh review. A saved comparison remains independent
+of later live state changes; access changes still cancel its review.
 
 **Select all within filters (N)** selects every entity matching the current
 filters, on every page; **Clear selection (N)** also clears entities hidden by

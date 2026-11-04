@@ -4,6 +4,10 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+concurrency:
+  group: ${{ github.repository }}-${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || format('run-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -22,7 +26,7 @@ jobs:
           exit $fail
       - name: Theming invariant (no OS prefers-color-scheme)
         run: |
-          if grep -rln "@media (prefers-color-scheme" --include='*.js' .; then
+          if git grep -l -F -- "@media (prefers-color-scheme" -- '*.js'; then
             echo "FAIL: OS prefers-color-scheme present — cards must follow HA theme via :host(.bento-dark) luminance"
             exit 1
           fi
